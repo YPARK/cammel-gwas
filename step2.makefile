@@ -5,9 +5,9 @@ NBLOCKS := $(shell cat $(LD) 2> /dev/null | tail -n+2 | wc -l)
 ldlist := $(shell seq 1 $(NBLOCKS))
 TEMPDIR := /broad/hptmp/ypp/cammel-gwas/tempdata
 
-all: $(foreach data, mayo geuvadis rosmap gtex, jobs/step2-$(data)-qtl.txt.gz jobs/step2-$(data)-qtl-mult.txt.gz)
+all: $(foreach data, mayo geuvadis rosmap, jobs/step2-$(data)-qtl.txt.gz) # jobs/step2-$(data)-qtl-mult.txt.gz)
 
-long: $(foreach data, mayo geuvadis rosmap gtex, jobs/step2-$(data)-qtl-long.txt.gz)
+long: $(foreach data, mayo geuvadis rosmap, jobs/step2-$(data)-qtl-long.txt.gz)
 
 jobs/%-long.txt.gz: jobs/%.txt.gz
 	zcat $< | awk 'system(" ! [ -f " $$NF " ]") == 0' | gzip > $@

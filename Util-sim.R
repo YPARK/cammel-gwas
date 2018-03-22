@@ -383,7 +383,7 @@ run.imputed.twas <- function(X, sim.data) {
 
 ################################################################
 ## Run MR-Egger (optinally with PC weighting)
-run.mr <- function(sim.data, X = NULL, is.egger = TRUE) {
+run.mr <- function(sim.data, X = NULL, is.egger = TRUE, weak.cutoff = 0) {
     require(MendelianRandomization)
     require(zqtl)
 
@@ -404,12 +404,19 @@ run.mr <- function(sim.data, X = NULL, is.egger = TRUE) {
         gwas.se <- matrix(1, nrow(gwas.beta), ncol(gwas.beta))
     }
 
-    take.egger <- function(j) {
+    build.mr.obj <- function(j) {
+        z.j <- eqtl.beta[, j] / eqtl.se[, j]
+        valid <- which(abs(z.j) > weak.cutoff)
+        if(length(valid) < 3) return(NULL)
+        mr.obj <- mr_input(bx = eqtl.beta[valid, j],
+                           bxse = eqtl.se[valid, j],
+                           by = gwas.beta[valid, 1],
+                           byse = gwas.se[valid, 1])
+    }
 
-        mr.obj <- mr_input(bx = eqtl.beta[, j],
-                           bxse = eqtl.se[, j],
-                           by = gwas.beta[, 1],
-                           byse = gwas.se[, 1])
+    take.egger <- function(j) {
+        mr.obj <- build.mr.obj(j)
+        if(is.null(mr.obj)) return(data.frame(effect = 0, effect.se = 1e-4))
 
         egger.out <- mr_egger(mr.obj)
         data.frame(effect = egger.out@Estimate,
@@ -417,11 +424,8 @@ run.mr <- function(sim.data, X = NULL, is.egger = TRUE) {
     }
 
     take.ivw <- function(j) {
-
-        mr.obj <- mr_input(bx = eqtl.beta[, j],
-                           bxse = eqtl.se[, j],
-                           by = gwas.beta[, 1],
-                           byse = gwas.se[, 1])
+        mr.obj <- build.mr.obj(j)
+        if(is.null(mr.obj)) return(data.frame(effect = 0, effect.se = 1e-4))
 
         ivw.out <- mr_ivw(mr.obj)
         data.frame(effect = ivw.out@Estimate,

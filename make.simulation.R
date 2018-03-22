@@ -94,12 +94,6 @@ best.tab <- best.stat %>% left_join(temp)
 best.tab %>% quick.view('desc(abs(best.marg.z))') %>% print()
 
 ################################################################
-## Imputed TWAS
-imp.twas.tab <- run.imputed.twas(X, sim.data)
-
-imp.twas.tab %>% quick.view('desc(abs(imp.lm))') %>% print()
-
-################################################################
 ## TWAS by Gusev
 twas.glmnet.tab <- run.twas.glmnet(X, sim.data)
 
@@ -113,35 +107,55 @@ twas.tab %>% quick.view('desc(abs(twas.z))') %>% print()
 
 ################################################################
 ## IVW
-ivw.tab <- run.mr(sim.data, X = NULL, is.egger = FALSE) %>%
-    mutate(ivw.z = effect/effect.se) %>%
-        select(gene, ivw.z)
+ivw.tab <- run.mr(sim.data, X = NULL, is.egger = FALSE, weak.cutoff = 2) %>%
+    mutate(ivw.z.2 = effect/effect.se) %>%
+        select(gene, ivw.z.2)
 
-ivw.tab.rot <- run.mr(sim.data, X = X, is.egger = FALSE) %>%
-    mutate(ivw.rot.z = effect/effect.se) %>%
-        select(gene, ivw.rot.z)
+ivw.tab.4 <- run.mr(sim.data, X = NULL, is.egger = FALSE, weak.cutoff = 4) %>%
+    mutate(ivw.z.4 = effect/effect.se) %>%
+        select(gene, ivw.z.4)
+
+ivw.tab.rot <- run.mr(sim.data, X = X, is.egger = FALSE, weak.cutoff = 2) %>%
+    mutate(ivw.rot.z.2 = effect/effect.se) %>%
+        select(gene, ivw.rot.z.2)
+
+ivw.tab.rot.4 <- run.mr(sim.data, X = X, is.egger = FALSE, weak.cutoff = 4) %>%
+    mutate(ivw.rot.z.4 = effect/effect.se) %>%
+        select(gene, ivw.rot.z.4)
 
 ivw.tab <-
     ivw.tab %>%
-        left_join(ivw.tab.rot)
+        left_join(ivw.tab.4) %>%
+            left_join(ivw.tab.rot) %>%
+                left_join(ivw.tab.rot.4)
 
-ivw.tab %>% quick.view('desc(abs(ivw.rot.z))') %>% print()
+ivw.tab %>% quick.view('desc(abs(ivw.rot.z.4))') %>% print()
 
 ################################################################
 ## EGGER
-egger.tab <- run.mr(sim.data, X = NULL, is.egger = TRUE) %>%
-    mutate(egger.z = effect/effect.se) %>%
-        select(gene, egger.z)
+egger.tab <- run.mr(sim.data, X = NULL, is.egger = TRUE, weak.cutoff = 2) %>%
+    mutate(egger.z.2 = effect/effect.se) %>%
+        select(gene, egger.z.2)
 
-egger.tab.rot <- run.mr(sim.data, X = X, is.egger = TRUE) %>%
-    mutate(egger.rot.z = effect/effect.se) %>%
-        select(gene, egger.rot.z)
+egger.tab.4 <- run.mr(sim.data, X = NULL, is.egger = TRUE, weak.cutoff = 4) %>%
+    mutate(egger.z.4 = effect/effect.se) %>%
+        select(gene, egger.z.4)
+
+egger.tab.rot <- run.mr(sim.data, X = X, is.egger = TRUE, weak.cutoff = 2) %>%
+    mutate(egger.rot.z.2 = effect/effect.se) %>%
+        select(gene, egger.rot.z.2)
+
+egger.tab.rot.4 <- run.mr(sim.data, X = X, is.egger = TRUE, weak.cutoff = 4) %>%
+    mutate(egger.rot.z.4 = effect/effect.se) %>%
+        select(gene, egger.rot.z.4)
 
 egger.tab <-
     egger.tab %>%
-        left_join(egger.tab.rot)
+        left_join(egger.tab.4) %>%
+            left_join(egger.tab.rot) %>%
+                left_join(egger.tab.rot.4)
 
-egger.tab %>% quick.view('desc(abs(egger.rot.z))') %>% print()
+egger.tab %>% quick.view('desc(abs(egger.rot.z.4))') %>% print()
 
 ################################################################
 ## run CaMMEL gene by gene
@@ -169,25 +183,30 @@ cammel.tab %>% quick.view('desc(cammel.lodds)') %>% print()
 out.tab <- sim.data$label %>%
     left_join(cammel.tab) %>%
         left_join(best.stat) %>%
-            left_join(imp.twas.tab) %>%
-                left_join(twas.tab) %>%
-                    left_join(twas.glmnet.tab) %>%
-                        left_join(ivw.tab) %>%
-                            left_join(egger.tab) %>%
-                                arrange(label)
+            left_join(twas.tab) %>%
+                left_join(twas.glmnet.tab) %>%
+                    left_join(ivw.tab) %>%
+                        left_join(egger.tab) %>%
+                            arrange(label)
 
 out.tab <- out.tab %>%
     mutate(cammel.lodds = signif(cammel.lodds, digits = 2),
+
            cammel.z = signif(cammel.z, digits = 2),
            best.marg.z = signif(best.marg.z, digits = 2),
-           imp.marg.z = signif(imp.marg.z, digits = 2),
-           imp.lm = signif(imp.lm, digits = 2),
            twas.z = signif(twas.z, digits = 2),
            twas.glmnet.z = signif(twas.glmnet.z, digits = 2),
-           ivw.z = signif(ivw.z, digits = 2),
-           ivw.rot.z = signif(ivw.rot.z, digits = 2),
-           egger.z = signif(egger.z, digits = 2),
-           egger.rot.z = signif(egger.rot.z, digits = 2),
+
+           ivw.z.4 = signif(ivw.z.4, digits = 2),
+           ivw.rot.z.4 = signif(ivw.rot.z.4, digits = 2),
+           egger.z.4 = signif(egger.z.4, digits = 2),
+           egger.rot.z.4 = signif(egger.rot.z.4, digits = 2),
+
+           ivw.z.2 = signif(ivw.z.2, digits = 2),
+           ivw.rot.z.2 = signif(ivw.rot.z.2, digits = 2),
+           egger.z.2 = signif(egger.z.2, digits = 2),
+           egger.rot.z.2 = signif(egger.rot.z.2, digits = 2),
+
            ld.idx)
 
 log.msg('Combined all results')
