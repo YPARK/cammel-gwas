@@ -40,7 +40,15 @@ null.files <- .list.files(path = med.dir, pattern = 'null.gz')
 
 null.stat.tab <- bind_rows(lapply(null.files, read_tsv))
 
-med.stat.tab <- bind_rows(lapply(med.files, read_tsv)) %>%
+.read.med <- function(.file) {
+    ld.idx <- basename(.file) %>%
+        gsub(pattern = '.mediation.gz', replacement = '') %>%
+            as.integer()
+    ret <- read_tsv(.file) %>%
+        mutate(ld.idx = ld.idx)
+}
+
+med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
     separate(med.id, into = c('med.id', 'factor'), sep = '@') %>%
         separate(med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
             select(-remove) %>%
@@ -69,7 +77,8 @@ calc.pval <- function(.gwas) {
 
     ret <- .pval.tab %>%
         select(chr, ld.lb, ld.ub, med.id, factor, gwas) %>%
-            mutate(pval.lodds = p.lodds.null)
+            mutate(pval.lodds = p.lodds.null) %>%
+                mutate(pval.lodds = signif(pval.lodds, 2))
 
     return(ret)
 }
@@ -78,8 +87,9 @@ take.lfsr <- function(tab, var.min = 1e-4) {
     ret <- mutate(.data = tab, pip = 1/(1+exp(-lodds))) %>%
         mutate(pos.prob = pnorm(0, mean = theta, sd = sqrt(theta.var + var.min))) %>%
             mutate(neg.prob = 1 - pos.prob) %>%
-                mutate(lfsr = 1 - pip * pmax(pos.prob, neg.prob)) %>%
-                    select(-pos.prob, -neg.prob, -pip)
+                mutate(lfsr = 1 - pip * pmax(pos.prob, neg.prob)) %>%                    
+                    select(-pos.prob, -neg.prob, -pip) %>%
+                        mutate(lfsr = signif(lfsr, 2))
     return(ret)
 }
 
