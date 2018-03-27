@@ -1,10 +1,4 @@
-run.cammel <- function(zqtl.data, xx.gwas, xx.med) {
-
-    vb.opt <- list(pi.ub = -1, pi.lb = -5, tau = -5, do.hyper = TRUE, tol = 1e-8,
-                   gammax = gammax.input,
-                   vbiter = 3000, do.stdize = TRUE, eigen.tol = eig.tol,
-                   rate = 1e-2, nsample = 10, print.interv = 500,
-                   weight = FALSE, do.rescale = FALSE)
+run.cammel <- function(zqtl.data, xx.gwas, xx.med, opt) {
 
     if(is.null(zqtl.data)) return(NULL)
 
@@ -15,16 +9,11 @@ run.cammel <- function(zqtl.data, xx.gwas, xx.med) {
                           zqtl.data$qtl.beta, zqtl.data$qtl.se,
                           X.gwas = xx.gwas.mat,
                           X.med = xx.med.mat,                          
-                          options = vb.opt)
+                          options = opt)
     return(z.out)
 }
 
-run.cammel.null <- function(zqtl.data, xx.gwas, xx.med, n.null) {
-
-    vb.opt <- list(pi.ub = -1, pi.lb = -5, tau = -5, do.hyper = TRUE, tol = 1e-8, gammax = gammax.input,
-                   vbiter = 3000, do.stdize = TRUE, eigen.tol = eig.tol,
-                   rate = 1e-2, nsample = 10, print.interv = 500,
-                   weight = FALSE, do.rescale = FALSE)
+run.cammel.null <- function(zqtl.data, xx.gwas, xx.med, n.null, opt) {
 
     xx.gwas.mat <- xx.gwas %c% zqtl.data$x.pos %>% as.matrix()
     xx.med.mat <- xx.med %c% zqtl.data$x.pos %>% as.matrix()
@@ -37,7 +26,7 @@ run.cammel.null <- function(zqtl.data, xx.gwas, xx.med, n.null) {
         z.out <- fit.med.zqtl(gwas.null, zqtl.data$gwas.se,
                               qtl.null, zqtl.data$qtl.se,
                               X.gwas = xx.gwas.mat, X.med = xx.med.mat,                              
-                              options = vb.opt)
+                              options = opt)
 
         null.stat <- melt.effect(z.out$param.mediated, zqtl.data$mediators, r) %>%
             mutate(theta.var = sqrt(theta.var)) %>% rename(theta.se = theta.var) %>%

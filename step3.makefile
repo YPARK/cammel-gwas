@@ -8,11 +8,11 @@ all:
 prepare:
 	qsub -P compbio_lab -binding linear:1 -cwd -V -l h_vmem=16g -l h_rt=24:00:00 -b y -j y -N ad_gwas ./run.sh ./make.distribute-ad.R
 
-run-jobs: $(foreach gwas, igap ptsd_ea, $(foreach data, mayo rosmap geuvadis gtex, jobs/step3-$(gwas)-$(data).txt.gz))
+run-jobs: $(foreach gwas, ptsd_ea igap, $(foreach data, mayo rosmap, jobs/step3-$(gwas)-$(data).txt.gz))
 
-run-long: $(foreach data, mayo rosmap geuvadis gtex, jobs/step3-ad-$(data)-long.txt.gz)
+run-long: $(foreach gwas, ptsd_ea igap, $(foreach data, mayo rosmap, jobs/step3-$(gwas)-$(data)-long.txt.gz))
 
-figure-jobs: $(foreach data, rosmap mayo geuvadis, jobs/step3-ad-$(data)_show.txt.gz)
+figure-jobs: $(foreach data, rosmap mayo, jobs/step3-ad-$(data)_show.txt.gz)
 
 table: $(foreach qtl, mayo rosmap geuvadis, $(foreach gam, 4, $(foreach eig, 2, mediation/gene_igap_$(qtl)_gammax-$(gam)_eigen-$(eig).txt.gz)))
 

@@ -114,12 +114,18 @@ igap.data <- igap.matched %>%
     make.zqtl.data()
 gc()
 
+vb.opt <- list(pi.ub = -1, pi.lb = -5, tau = -5, do.hyper = TRUE, tol = 1e-8,
+               gammax = gammax.input,
+               vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+               rate = 1e-2, nsample = 10, print.interv = 500,
+               weight = FALSE, do.rescale = FALSE)
+
 out.tab <- igap.data %>%
-    run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED) %>%
+    run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, opt = vb.opt) %>%
         get.effect.tab(z.data = igap.data, gwas.tab = igap.gwas.tab, qtl.tab = qtl.tab, data.name = 'IGAP')
 
 null.tab <- igap.data %>%
-    run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 3) %>%
+    run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 5, opt = vb.opt) %>%
         mutate(gwas = 'IGAP')
 
 write_tsv(out.tab, path = out.tab.file)

@@ -414,7 +414,7 @@ run.mr <- function(sim.data, X = NULL, is.egger = TRUE, weak.cutoff = 0) {
                            byse = gwas.se[valid, 1])
     }
 
-    take.egger <- function(j) {
+    .take.egger <- function(j) {
         mr.obj <- build.mr.obj(j)
         if(is.null(mr.obj)) return(data.frame(effect = 0, effect.se = 1e-4))
 
@@ -423,7 +423,7 @@ run.mr <- function(sim.data, X = NULL, is.egger = TRUE, weak.cutoff = 0) {
                    effect.se = egger.out@StdError.Est)
     }
 
-    take.ivw <- function(j) {
+    .take.ivw <- function(j) {
         mr.obj <- build.mr.obj(j)
         if(is.null(mr.obj)) return(data.frame(effect = 0, effect.se = 1e-4))
 
@@ -431,6 +431,15 @@ run.mr <- function(sim.data, X = NULL, is.egger = TRUE, weak.cutoff = 0) {
         data.frame(effect = ivw.out@Estimate,
                    effect.se = ivw.out@StdError)
     }
+
+    .error <- function(e) {
+        log.msg('Failed to estimate MR!\n')
+        return(data.frame(effect = NA, effect.se = NA))
+    }
+
+    take.egger <- function(j) tryCatch(.take.egger(j), error = .error)
+
+    take.ivw <- function(j) tryCatch(.take.ivw(j), error = .error)
 
     fun <- take.egger
     if(!is.egger) fun <- take.ivw

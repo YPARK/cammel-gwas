@@ -10,4 +10,4 @@ jobs/step4-simulation.txt.gz:
 
 jobs/step4-simulation-long.txt.gz: jobs/step4-simulation.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF " ]") == 0' | gzip > $@
-	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=36:00:00 -b y -j y -N cammel_$*_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=36:00:00 -b y -j y -N cammel_sim_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@

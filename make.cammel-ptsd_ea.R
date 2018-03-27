@@ -105,6 +105,12 @@ if(nrow(qtl.tab) == 0) {
     q()
 }
 
+vb.opt <- list(pi.ub = -2, pi.lb = -5, tau = -5, do.hyper = TRUE, tol = 1e-8,
+               gammax = gammax.input,
+               vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+               rate = 1e-2, nsample = 10, print.interv = 500,
+               weight = FALSE, do.rescale = TRUE)
+
 ################################################################
 mil.ea.gwas.tab <- read_tsv(mil.ea.gwas.file)
 
@@ -120,22 +126,22 @@ civ.ea.matched <- civ.ea.gwas.tab %>%
 mil.ea.data <- mil.ea.matched %>% make.zqtl.data()
 
 mil.ea.effect <- mil.ea.data %>%
-    run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED) %>%
+    run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, opt = vb.opt) %>%
         get.effect.tab(z.data = mil.ea.data, gwas.tab = mil.ea.gwas.tab, qtl.tab = qtl.tab, data.name = 'MIL.EA')
 
 mil.ea.null.out <- mil.ea.data %>%
-    run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 3) %>%
+    run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 1, opt = vb.opt) %>%
         mutate(gwas = 'MIL.EA')
 
 ################################################################
 civ.ea.data <- civ.ea.matched %>% make.zqtl.data()
 
 civ.ea.effect <- civ.ea.data %>%
-    run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED) %>%
+    run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, opt = vb.opt) %>%
         get.effect.tab(z.data = civ.ea.data, gwas.tab = civ.ea.gwas.tab, qtl.tab = qtl.tab, data.name = 'CIV.EA')
 
 civ.ea.null.out <- civ.ea.data %>%
-    run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 3) %>%
+    run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 1, opt = vb.opt) %>%
         mutate(gwas = 'CIV.EA')
 
 ################################################################
