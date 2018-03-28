@@ -40,12 +40,26 @@ null.files <- .list.files(path = med.dir, pattern = 'null.gz')
 
 null.stat.tab <- bind_rows(lapply(null.files, read_tsv))
 
+ld.file <- 'ldblocks/nygcresearch-ldetect-data-ac125e47bf7f/EUR/fourier_ls-all.bed'
+ld.tab <- read_tsv(ld.file) %>%
+    rename(ld.lb = start, ld.ub = stop) %>%
+        mutate(chr = gsub(chr, pattern = 'chr', replacement = '')) %>%
+            filter(chr %in% as.character(1:22)) %>%
+                mutate(chr = as.integer(chr))
+
 .read.med <- function(.file) {
     ld.idx <- basename(.file) %>%
         gsub(pattern = '.mediation.gz', replacement = '') %>%
             as.integer()
-    ret <- read_tsv(.file) %>%
-        mutate(ld.idx = ld.idx)
+
+    ret <- read_tsv(.file)
+
+    if(!'ld.lb' %in% colnames(ret)) {
+        ld.info <- ld.tab[ld.idx, ] %>% unlist()
+        ret <- ret %>%
+            mutate(chr = ld.info[1], ld.lb = ld.info[2], ld.ub = ld.info[3])
+    }
+    return(ret)
 }
 
 med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
