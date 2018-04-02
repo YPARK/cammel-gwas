@@ -90,12 +90,13 @@ draw.circos <- function(med.tab, out.file, fsr.cutoff = 1e-2) {
 
     circos.yaxis('left', labels.cex = .3, sector.index = 'chr1', col = 'orange', labels.col = 'orange')
 
-    ## show top 3 gene names within each LD block
+    ## show top genes within each LD block
+    n.top <- 7
     med.lab.tab <-
         med.tab %>%
             filter(lfsr <= fsr.cutoff) %>%
                 group_by(chr, ld.lb, ld.ub) %>%
-                    top_n(3, -var.mediated) %>%
+                    top_n(n.top, -var.mediated) %>%
                         as.data.frame() %>%
                             mutate(gene.col = if_else(theta > 0, 'red', 'blue')) %>%
                                 select(chr, tss, tes, hgnc, gene.col, lfsr, var.mediated) %>%
@@ -130,14 +131,10 @@ read.med.tab <- function(med.file, fsr.cutoff = 1e-2) {
                             as.data.frame()
 }
 
-med.tab <- read.med.tab('mediation/gene_ad_mayo_gammax-4_eigen-2.txt.gz', 5e-2)
-out.file <- 'figure/gene/ad/Fig_global_mayo.pdf'
+med.tab <- read.med.tab('mediation/gene_igap_mayo_gammax-4_eigen-2.txt.gz', 0.1)
+out.file <- 'figure/gene/Fig_igap_global_mayo.pdf'
 draw.circos(med.tab, out.file, 5e-2)
 
-med.tab <- read.med.tab('mediation/gene_ad_rosmap_gammax-4_eigen-2.txt.gz', 5e-2)
-out.file <- 'figure/gene/ad/Fig_global_rosmap.pdf'
+med.tab <- read.med.tab('mediation/gene_igap_rosmap_gammax-4_eigen-2.txt.gz', 0.1)
+out.file <- 'figure/gene/Fig_igap_global_rosmap.pdf'
 draw.circos(med.tab, out.file, 5e-2)
-
-med.tab <- read.med.tab('mediation/gene_ad_geuvadis_gammax-4_eigen-2.txt.gz', 5e-4)
-out.file <- 'figure/gene/ad/Fig_global_geuvadis.pdf'
-draw.circos(med.tab, out.file, 1e-3)
