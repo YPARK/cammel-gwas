@@ -124,11 +124,12 @@ out.tab <- igap.data %>%
     run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, opt = vb.opt) %>%
         get.effect.tab(z.data = igap.data, gwas.tab = igap.gwas.tab, qtl.tab = qtl.tab, data.name = 'IGAP')
 
+write_tsv(out.tab, path = out.tab.file)
+
 null.tab <- igap.data %>%
     run.cammel.null(xx.gwas = plink.gwas$BED, xx.med = plink.eqtl$BED, n.null = 5, opt = vb.opt) %>%
         mutate(gwas = 'IGAP')
 
-write_tsv(out.tab, path = out.tab.file)
 write_tsv(null.tab, path = out.null.file)
 
 system('rm -r ' %&&% temp.dir)

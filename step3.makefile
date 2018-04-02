@@ -6,20 +6,20 @@ NBLOCKS := $(shell cat $(LD) 2> /dev/null | tail -n+2 | wc -l)
 all:
 
 prepare:
-	qsub -P compbio_lab -binding linear:1 -cwd -V -l h_vmem=16g -l h_rt=24:00:00 -b y -j y -N ad_gwas ./run.sh ./make.distribute-ad.R
+	qsub -P compbio_lab -binding linear:1 -cwd -V -l h_vmem=16g -l h_rt=24:00:00 -b y -j y -N igap_gwas ./run.sh ./make.distribute-ad.R
 
 run-jobs: $(foreach gwas, ptsdEA igap, $(foreach data, mayo rosmap, jobs/step3-$(gwas)-$(data).txt.gz))
 
 run-long: $(foreach gwas, ptsdEA igap, $(foreach data, mayo rosmap, jobs/step3-$(gwas)-$(data)-long.txt.gz))
 
-figure-jobs: $(foreach data, rosmap mayo, jobs/step3-ad-$(data)_show.txt.gz)
+figure-jobs: $(foreach data, rosmap mayo, jobs/step3-igap-$(data)_show.txt.gz)
 
 table: $(foreach gwas, ptsdEA igap, $(foreach qtl, mayo rosmap, $(foreach gam, 4, $(foreach eig, 2, mediation/gene_$(gwas)_$(qtl)_gammax-$(gam)_eigen-$(eig).txt.gz))))
 
 ################################################################
 jobs/%-long.txt.gz: jobs/%.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF ".mediation.gz ]") == 0' | gzip > $@
-	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=2g -l h_rt=36:00:00 -b y -j y -N cammel_$*_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=36:00:00 -b y -j y -N cammel_$*_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/step3-%-rosmap.txt.gz:
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
@@ -49,20 +49,15 @@ FSR := 0.1
 
 jobs/step3-igap-%_show.txt.gz: $(foreach g, 4, $(foreach e, 2, jobs/step3-igap_%.gammax-$(g)_eigen-$(e).show.txt.gz))
 	@cat $^ > $@
-	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=2g -l h_rt=8:00:00 -b y -j y -N figure_ad_$* -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=2g -l h_rt=8:00:00 -b y -j y -N figure_igap_$* -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
-jobs/step3-igap_rosmap.%.show.txt.gz: mediation/gene_ad_rosmap_%.txt.gz
+jobs/step3-igap_rosmap.%.show.txt.gz: mediation/gene_igap_rosmap_%.txt.gz
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	@tail -n+2 $(LD) | awk '{ print "_ld" "\t" NR "\t" $$1 "\t" $$2 "\t" $$3 }' | gzip | zcat - $< | awk -v args="$(shell echo $* | awk -F'_' '{ gsub("gammax-","", $$1); gsub("eigen-","", $$2); print ("1e" $$1) "\t" ("1e-" $$2) }')" -F'\t' '($$1 == "_ld") { k = ($$3 FS $$4 FS $$5); ld[k] = $$2; } ($$1 != "_ld") && /igap/ && ($$(NF -1) < $(FSR)) { _k = "chr" $$25 FS $$26 FS $$27; k = ld[_k]; show[k]++; } END { for(k in show) print "./show.cammel-igap-local.R" FS k FS ("cis-eqtl/rosmap/" k "_qtl.txt.gz") FS 356 FS "ROSMAP_GENO" FS args FS "$<" FS ("figure/gene/ad/rosmap/$*/Fig_Loc")  }' | sort -k2n | awk 'system("[ -f " $$(NF - 1) " ]") == 0' | gzip > $@
+	@tail -n+2 $(LD) | awk '{ print "_ld" "\t" NR "\t" $$1 "\t" $$2 "\t" $$3 }' | gzip | zcat - $< | awk -v args="$(shell echo $* | awk -F'_' '{ gsub("gammax-","", $$1); gsub("eigen-","", $$2); print ("1e" $$1) "\t" ("1e-" $$2) }')" -F'\t' '($$1 == "_ld") { k = ($$3 FS $$4 FS $$5); ld[k] = $$2; } ($$1 != "_ld") && /IGAP/ && ($$(NF -1) < $(FSR)) { _k = "chr" $$24 FS $$25 FS $$26; k = ld[_k]; show[k]++; } END { for(k in show) print "./show.cammel-igap-local.R" FS k FS ("cis-eqtl/rosmap/" k "_qtl.txt.gz") FS 356 FS "ROSMAP_GENO" FS args FS "$<" FS ("figure/gene/ad/rosmap/$*/Fig_Loc")  }' | sort -k2n | awk 'system("[ -f " $$(NF - 1) " ]") == 0' | gzip > $@
 
-jobs/step3-igap_mayo.%.show.txt.gz: mediation/gene_ad_mayo_%.txt.gz
+jobs/step3-igap_mayo.%.show.txt.gz: mediation/gene_igap_mayo_%.txt.gz
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	@tail -n+2 $(LD) | awk '{ print "_ld" "\t" NR "\t" $$1 "\t" $$2 "\t" $$3 }' | gzip | zcat - $< | awk -v args="$(shell echo $* | awk -F'_' '{ gsub("gammax-","", $$1); gsub("eigen-","", $$2); print ("1e" $$1) "\t" ("1e-" $$2) }')" -F'\t' '($$1 == "_ld") { k = ($$3 FS $$4 FS $$5); ld[k] = $$2; } ($$1 != "_ld") && /igap/ && ($$(NF -1) < $(FSR)) { _k = "chr" $$25 FS $$26 FS $$27; k = ld[_k]; show[k]++; } END { for(k in show) print "./show.cammel-igap-local.R" FS k FS ("cis-eqtl/mayo/" k "_qtl.txt.gz") FS 266 FS "Mayo/MayoRNAseq_RNAseq_Genome-Wide_Genotypes_HRCimputed" FS args FS "$<" FS ("figure/gene/ad/mayo/$*/Fig_Loc")  }' | sort -k2n | awk 'system("[ -f " $$(NF - 1) " ]") == 0' | gzip > $@
-
-jobs/step3-igap_geuvadis.%.show.txt.gz: mediation/gene_ad_geuvadis_%.txt.gz
-	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	@tail -n+2 $(LD) | awk '{ print "_ld" "\t" NR "\t" $$1 "\t" $$2 "\t" $$3 }' | gzip | zcat - $< | awk -v args="$(shell echo $* | awk -F'_' '{ gsub("gammax-","", $$1); gsub("eigen-","", $$2); print ("1e" $$1) "\t" ("1e-" $$2) }')" -F'\t' '($$1 == "_ld") { k = ($$3 FS $$4 FS $$5); ld[k] = $$2; } ($$1 != "_ld") && /igap/ && ($$(NF -1) < $(FSR)) { _k = "chr" $$25 FS $$26 FS $$27; k = ld[_k]; show[k]++; } END { for(k in show) print "./show.cammel-igap-local.R" FS k FS ("cis-eqtl/geuvadis/" k "_qtl.txt.gz") FS 358 FS "1KG_EUR" FS args FS "$<" FS ("figure/gene/ad/geuvadis/$*/Fig_Loc")  }' | sort -k2n | awk 'system("[ -f " $$(NF - 1) " ]") == 0' | gzip > $@
-
+	@tail -n+2 $(LD) | awk '{ print "_ld" "\t" NR "\t" $$1 "\t" $$2 "\t" $$3 }' | gzip | zcat - $< | awk -v args="$(shell echo $* | awk -F'_' '{ gsub("gammax-","", $$1); gsub("eigen-","", $$2); print ("1e" $$1) "\t" ("1e-" $$2) }')" -F'\t' '($$1 == "_ld") { k = ($$3 FS $$4 FS $$5); ld[k] = $$2; } ($$1 != "_ld") && /IGAP/ && ($$(NF -1) < $(FSR)) { _k = "chr" $$24 FS $$25 FS $$26; k = ld[_k]; show[k]++; } END { for(k in show) print "./show.cammel-igap-local.R" FS k FS ("cis-eqtl/mayo/" k "_qtl.txt.gz") FS 266 FS "Mayo/MayoRNAseq_RNAseq_Genome-Wide_Genotypes_HRCimputed" FS args FS "$<" FS ("figure/gene/ad/mayo/$*/Fig_Loc")  }' | sort -k2n | awk 'system("[ -f " $$(NF - 1) " ]") == 0' | gzip > $@
 
 
 ################################################################
