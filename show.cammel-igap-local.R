@@ -59,10 +59,12 @@ read.igap.data <- function(argv) {
     }
 
     genes <- med.tab %>%
-        filter(lfsr < 1e-2) %>%
-            select(hgnc) %>%
-                unlist(use.names = FALSE) %>%
-                    paste(collapse = '_')
+        filter(lfsr < 1e-1) %>%
+            arrange(lfsr) %>%
+                head(3) %>%
+                    select(hgnc) %>%
+                        unlist(use.names = FALSE) %>%
+                            paste(collapse = '_')
     
     out.hdr <- out.hdr %&&% '_' %&&% chr.input %&&% '_' %&&% ld.idx %&&% '_' %&&% genes
 
