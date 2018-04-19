@@ -16,6 +16,11 @@ figure-jobs: $(foreach data, rosmap mayo, jobs/step3-igap-$(data)_show.txt.gz)
 
 table: $(foreach gwas, ptsdEA igap, $(foreach qtl, mayo rosmap, $(foreach gam, 4, $(foreach eig, 2, mediation/gene_$(gwas)_$(qtl)_gammax-$(gam)_eigen-$(eig).txt.gz))))
 
+GO: $(foreach gwas, igap, $(foreach qtl, mayo rosmap, $(foreach gam, 4, $(foreach eig, 2, mediation/gene_$(gwas)_$(qtl)_gammax-$(gam)_eigen-$(eig)_go_tab.txt.gz))))
+
+mediation/%_go_tab.txt.gz: mediation/%.txt.gz
+	./run.sh Rscript --vanilla $< $(shell echo $@ | sed 's/_tab.txt.gz//')
+
 ################################################################
 jobs/%-long.txt.gz: jobs/%.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF ".mediation.gz ]") == 0' | gzip > $@

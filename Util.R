@@ -3,6 +3,7 @@
 `%r%` <- function(mat, rows) mat[rows, , drop = FALSE]
 `%&&%` <- function(a,b) paste(a, b, sep = '')
 glue <- function(...) paste(..., sep = '')
+.unlist <- function(...) unlist(..., use.names = FALSE)
 .zeros <- function(n1, n2) matrix(0, n1, n2)
 
 options(stringsAsFactors = FALSE)
@@ -527,10 +528,13 @@ order.pair <- function(pair.tab) {
     require(tidyr)
     require(dplyr)
     M <- pair.tab %>% tidyr::spread(key = col, value = weight, fill = 0)
+    log.msg('Built the Mat: %d x %d', nrow(M), ncol(M))
     ro <- row.order(M %>% dplyr::select(-row) %>% as.matrix())
+    log.msg('Sort the rows: %d', length(ro))
     co <- row.order(t(M %>% dplyr::select(-row) %>% as.matrix()))
+    log.msg('Sort the columns: %d', length(co))
     cc <- colnames(M)[-1]
     rr <- M[, 1]
 
-    list(rows = rr[ro], cols = cc[co])
+    list(rows = rr[ro], cols = cc[co], M = M)
 }
