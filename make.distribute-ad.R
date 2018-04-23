@@ -16,8 +16,6 @@ out.dir <- '/broad/hptmp/ypp/cammel/gwas_stat/'
 system('mkdir -p ' %&&% out.dir)
 
 igap.gwas.file <- 'gwas/igap_ad.txt.gz'
-ukbb.paternal.gwas.file <- 'gwas/ukbb_paternal_ad_formatted.txt.gz'
-ukbb.maternal.gwas.file <- 'gwas/ukbb_maternal_ad_formatted.txt.gz'
 
 ## Divide GWAS statistics into independent chunks
 write.gwas.chunk <- function(l, gwas.tab, gwas.name) {
@@ -49,18 +47,21 @@ log.msg('Wrote %d files\n', sum(n.written))
 rm(igap.gwas.tab)
 gc()
 
-ukbb.cols <- c('chr', 'snp.loc', 'gwas.a1', 'gwas.a2', 'rs', 'sample.size', 'gwas.beta',
-               'gwas.se', 'gwas.p')
+## ukbb.paternal.gwas.file <- 'gwas/ukbb_paternal_ad_formatted.txt.gz'
+## ukbb.maternal.gwas.file <- 'gwas/ukbb_maternal_ad_formatted.txt.gz'
 
-ukbb.pat.gwas.tab <- read_tsv(ukbb.paternal.gwas.file, col_names = ukbb.cols)
-n.written <- sapply(1:n.ld, write.gwas.chunk, gwas.tab = ukbb.pat.gwas.tab, gwas.name = 'ukbb_ad_pat')
-log.msg('Wrote %d files\n', sum(n.written))
-rm(ukbb.pat.gwas.tab)
-gc()
+## ukbb.cols <- c('chr', 'snp.loc', 'gwas.a1', 'gwas.a2', 'rs', 'sample.size', 'gwas.beta',
+##                'gwas.se', 'gwas.p')
 
-ukbb.mat.gwas.tab <- read_tsv(ukbb.maternal.gwas.file, col_names = ukbb.cols)
-n.written <- sapply(1:n.ld, write.gwas.chunk, gwas.tab = ukbb.mat.gwas.tab, gwas.name = 'ukbb_ad_mat')
-log.msg('Wrote %d files\n', sum(n.written))
-rm(ukbb.mat.gwas.tab)
-gc()
+## ukbb.pat.gwas.tab <- read_tsv(ukbb.paternal.gwas.file, col_names = ukbb.cols)
+## n.written <- sapply(1:n.ld, write.gwas.chunk, gwas.tab = ukbb.pat.gwas.tab, gwas.name = 'ukbb_ad_pat')
+## log.msg('Wrote %d files\n', sum(n.written))
+## rm(ukbb.pat.gwas.tab)
+## gc()
+
+## ukbb.mat.gwas.tab <- read_tsv(ukbb.maternal.gwas.file, col_names = ukbb.cols)
+## n.written <- sapply(1:n.ld, write.gwas.chunk, gwas.tab = ukbb.mat.gwas.tab, gwas.name = 'ukbb_ad_mat')
+## log.msg('Wrote %d files\n', sum(n.written))
+## rm(ukbb.mat.gwas.tab)
+## gc()
 
