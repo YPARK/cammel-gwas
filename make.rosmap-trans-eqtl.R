@@ -19,6 +19,8 @@ tgt.ld.ub.input <- as.integer(argv[6]) # tgt.ld.ub.input = 1892607
 
 out.file <- argv[7] # out.file = 'temp.txt.gz'
 
+dir.create(dirname(out.file), recursive = TRUE)
+
 ######################
 ## source -> target ##
 ######################

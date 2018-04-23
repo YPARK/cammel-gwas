@@ -20,7 +20,7 @@ ld.info.file <- 'ldblocks/EUR/fourier_ls-all.bed'
 ld.info.tab <- read_tsv(ld.info.file, col_names = c('chr', 'ld.lb', 'ld.ub'), skip = 1) %>%
     mutate(chr = gsub(chr, pattern = 'chr', replacement = '')) %>%
         mutate(chr = as.integer(chr)) %>%
-            mutate(ld = chr %&&% '\t' %&&% ld.lb %&&% '\t' %&&% ld.ub) %>%
+            mutate(ld = chr %&&% ':' %&&% ld.lb %&&% ':' %&&% ld.ub) %>%
                 mutate(idx = 1:n()) %>%
                     select(ld, idx)
 
@@ -30,7 +30,7 @@ dir.create(dirname(out.file), recursive = TRUE)
 med.tab <- read_tsv(med.file)
 
 hgnc.ld.tab <- med.tab %>% select(chr, ld.lb, ld.ub, hgnc) %>% unique() %>%
-    mutate(ld = chr %&&% '\t' %&&% ld.lb %&&% '\t' %&&% ld.ub) %>%
+    mutate(ld = chr %&&% ':' %&&% ld.lb %&&% ':' %&&% ld.ub) %>%
         select(hgnc, ld)
 
 net.file <- 'pathways/BIOGRID-ORGANISM-Homo_sapiens-3.4.159.tab2.txt.gz'
