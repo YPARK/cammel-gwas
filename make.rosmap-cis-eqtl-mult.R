@@ -128,20 +128,44 @@ genes.ctrl <- other.genes %r% ctrl.idx
 ## Take reference genotypes
 plink.hdr <- geno.dir %&&% '/chr' %&&% chr.input
 
-plink <- subset.plink(plink.hdr, chr.input, ld.lb.input, ld.ub.input, temp.dir)
+plink.eqtl <- subset.plink(plink.hdr, chr.input, ld.lb.input, ld.ub.input, temp.dir)
 
-if(is.null(plink)){
+if(is.null(plink.eqtl)){
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)
     q()
 }
 
-x.fam <- plink$FAM %>%
+plink.gwas <- subset.plink('1KG_EUR/chr' %&&% chr.input,
+                           chr.input, ld.lb.input, ld.ub.input, temp.dir)
+
+## Read and match two PLINK filesets
+plink.matched <- match.plink(plink.gwas, plink.eqtl)
+
+if(is.null(plink.matched)) {
+    write_tsv(data.frame(), path = out.file)
+    log.msg('Just wrote empty QTL files!\n')
+    system('rm -r ' %&&% temp.dir)    
+    q()
+}
+
+plink.gwas <-  plink.matched$gwas
+plink.eqtl <-  plink.matched$qtl
+
+if(is.null(plink.eqtl)){
+    write_tsv(data.frame(), path = out.file)
+    log.msg('Just wrote empty QTL files!\n')
+    system('rm -r ' %&&% temp.dir)    
+    q()
+}
+
+################################################################
+x.fam <- plink.eqtl$FAM %>%
     mutate(x.pos = 1:n()) %>%
         rename(IID = iid)
 
-x.bim <- plink$BIM %>%
+x.bim <- plink.eqtl$BIM %>%
     mutate(x.col = 1:n())
 
 covar.matched <- covar.tab %>%
@@ -154,7 +178,7 @@ y.pos <- covar.matched$y.pos
 pos.df <- data.frame(x.pos, y.pos)
 
 ################################################################
-xx.std <- plink$BED %r% x.pos %>% scale() %>% rm.na.zero()
+xx.std <- plink.eqtl$BED %r% x.pos %>% scale() %>% rm.na.zero()
 
 Y0.std <- Y0.ctrl %>% trans.normal() %r% y.pos %>% scale() %>% rm.na.zero()
 colnames(Y0.std) <- 1:ncol(Y0.ctrl)
@@ -190,9 +214,11 @@ covar.mat <- covar.tab %>%
                         as.matrix()
 
 ################################################################
+K <- min(10, min(ncol(Y0.ctrl), ncol(covar.mat)))
+
 opt.reg <- list(vbiter = 5000, gammax = 1e4, tol = 1e-8, rate = 1e-2,
                 pi = -1, tau = -4, do.hyper = FALSE, jitter = 0.01,
-                model = 'nb', out.residual = TRUE, k = 10,
+                model = 'nb', out.residual = TRUE, k = K,
                 svd.init = TRUE, print.interv = 100)
 
 ################################################################
@@ -202,6 +228,7 @@ if(ncol(Y0.ctrl) > 0) {
     ## 0. remove covariance effects (and convert NB to Gaussian)
     y0.out <- fqtl.regress(y = Y0.ctrl,
                            x.mean = covar.mat,
+                           factored = TRUE,
                            options = opt.reg)
 
     y0.covar <- y0.out$resid$theta %>% scale()
@@ -213,20 +240,17 @@ if(ncol(Y0.ctrl) > 0) {
 ## Estimate multivariate models
 covar.mat.combined <- cbind(covar.mat, y0.covar)
 
-xx.std <- plink$BED %r% pos.df$x.pos %>% scale()
+xx.std <- plink.eqtl$BED %r% pos.df$x.pos %>% scale()
 
 ################################################################
 opt.reg <- list(vbiter = 5000, gammax = 1e4, tol = 1e-8, rate = 1e-2,
                 pi = -1, tau = -4, do.hyper = FALSE, jitter = 0.01,
-                model = 'nb', out.residual = FALSE, k = 10,
-                svd.init = TRUE, print.interv = 100)
+                model = 'nb', out.residual = FALSE, print.interv = 100)
 
 y1.out <- fqtl.regress(y = Y1 %r% pos.df$y.pos,
                        x.mean = xx.std,
                        c.mean = covar.mat.combined %r% pos.df$y.pos,
                        opt = opt.reg)
-
-resid <- y1.out$resid$theta %>% scale()
 
 pip.cutoff <- 0.9
 logit <- function(x) log(x) - log(1 - x)
@@ -267,7 +291,7 @@ if(nrow(mult.tab) < 1){
     q()
 }
 
-X <- plink$BED
+X <- plink.gwas$BED
 
 multi.to.uni <- function(tab) {
     eta <- (X %c% tab$x.col) %*% matrix(as.numeric(tab$theta), ncol = 1)

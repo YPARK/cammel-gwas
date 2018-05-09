@@ -10,8 +10,8 @@ if(length(argv) < 4) {
 }
 
 chr.input <- as.integer(argv[1])   # chr.input = 1
-ld.lb.input <- as.integer(argv[2]) # ld.lb.input = 9365199
-ld.ub.input <- as.integer(argv[3]) # ld.ub.input = 10806984
+ld.lb.input <- as.integer(argv[2]) # ld.lb.input = 11777841
+ld.ub.input <- as.integer(argv[3]) # ld.ub.input = 12779466
 out.file <- argv[4]
 
 if(file.exists(out.file)) {
@@ -76,27 +76,49 @@ temp.dir <- system('mkdir -p /broad/hptmp/ypp/cammel.gtex-fqtl/' %&&% out.file %
 
 plink.hdr <- geno.dir %&&% '/chr' %&&% chr.input
 
-plink.error <- function(e) {
-    log.msg('No QTL here!\n')
-    return(NULL)
-}
+plink.eqtl <- subset.plink(plink.hdr, chr.input, ld.lb.input, ld.ub.input, temp.dir)
 
-plink <- tryCatch(subset.plink(plink.hdr, chr.input, ld.lb.input, ld.ub.input, temp.dir), error = plink.error)
-
-if(is.null(plink)){
+if(is.null(plink.eqtl)){
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)    
     q()
 }
 
-x.bim <- plink$BIM %>%
-    mutate(x.pos = 1:n()) %>%
+plink.gwas <- subset.plink('1KG_EUR/chr' %&&% chr.input,
+                           chr.input, ld.lb.input, ld.ub.input, temp.dir)
+
+## Read and match two PLINK filesets
+plink.matched <- match.plink(plink.gwas, plink.eqtl)
+
+if(is.null(plink.matched)) {
+    write_tsv(data.frame(), path = out.file)
+    log.msg('Just wrote empty QTL files!\n')
+    system('rm -r ' %&&% temp.dir)    
+    q()
+}
+
+plink.gwas <-  plink.matched$gwas
+plink.eqtl <-  plink.matched$qtl
+
+if(is.null(plink.eqtl)){
+    write_tsv(data.frame(), path = out.file)
+    log.msg('Just wrote empty QTL files!\n')
+    system('rm -r ' %&&% temp.dir)    
+    q()
+}
+
+################################################################
+x.bim <- plink.gwas$BIM %>%
+    mutate(x.col = 1:n()) %>%
         select(-missing)
 
 gtex.stat.bim <- gtex.stat %>%
-    left_join(x.bim) %>%
-        na.omit()
+    select(-rs) %>%
+        rename(a1 = plink.a1, a2 = plink.a2) %>%
+            left_join(x.bim) %>%
+                na.omit() %>%
+                    mutate(theta = if_else(a1 != plink.a1, -theta, theta))
 
 if(nrow(gtex.stat.bim) < 1) {
     write_tsv(data.frame(), path = out.file)
@@ -105,13 +127,10 @@ if(nrow(gtex.stat.bim) < 1) {
     q()
 }
 
-X <- plink$BED %>% scale() %>% rm.na.zero()
-
-x.bim <- plink$BIM %>%
-    mutate(x.col = 1:n())
+X <- plink.gwas$BED %>% scale()
 
 multi.to.uni <- function(tab) {
-    eta <- (X %c% tab$x.pos) %*% matrix(as.numeric(tab$theta), ncol = 1)
+    eta <- (X %c% tab$x.col) %*% matrix(as.numeric(tab$theta), ncol = 1)
     ret <- calc.qtl.stat(X, eta) %>%
         left_join(x.bim) %>%
             rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%

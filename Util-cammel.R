@@ -54,7 +54,7 @@ get.var.tab <- function(var.decomp, mediators) {
 }
 
 ## gene-level QTL and GWAS stat summary
-get.summary.tab <- function(.gwas.tab, .qtl.tab) {
+get.summary.tab <- function(.gwas.tab, .qtl.tab, .plink.obj) {
     if(is.null(.gwas.tab)) return(NULL)
 
     if('rs' %in% colnames(.qtl.tab)){
@@ -62,7 +62,7 @@ get.summary.tab <- function(.gwas.tab, .qtl.tab) {
     }
 
     .temp <- .gwas.tab %>%
-        match.allele(plink.obj = plink.eqtl, qtl.tab = .qtl.tab)
+        match.allele(plink.obj = .plink.obj, qtl.tab = .qtl.tab)
 
     .temp.gwas <- .temp %>% group_by(med.id) %>%
         slice(which.min(gwas.p)) %>%
@@ -80,12 +80,16 @@ get.summary.tab <- function(.gwas.tab, .qtl.tab) {
     return(ret)
 }
 
-get.effect.tab <- function(z.out, z.data, gwas.tab, qtl.tab, data.name) {
+get.effect.tab <- function(z.out, z.data, gwas.tab, qtl.tab, data.name, plink.obj = NULL) {
     if(is.null(z.out)) return(NULL)
     z.effect <-
         melt.effect(z.out$param.mediated, z.data$mediators, data.name) %>%
             rename(med.id = Var1, gwas = Var2) %>%
-                left_join(get.var.tab(z.out$var.decomp, z.data$mediators)) %>%
-                    left_join(get.summary.tab(gwas.tab, qtl.tab))
+                left_join(get.var.tab(z.out$var.decomp, z.data$mediators))
+
+    if(!is.null(.plink.obj)) {
+        z.effect <- z.effect %>%
+            left_join(get.summary.tab(gwas.tab, qtl.tab, plink.obj))
+    }
     return(z.effect)
 }
