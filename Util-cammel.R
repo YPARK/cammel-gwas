@@ -87,7 +87,7 @@ get.effect.tab <- function(z.out, z.data, gwas.tab, qtl.tab, data.name, plink.ob
             rename(med.id = Var1, gwas = Var2) %>%
                 left_join(get.var.tab(z.out$var.decomp, z.data$mediators))
 
-    if(!is.null(.plink.obj)) {
+    if(!is.null(plink.obj)) {
         z.effect <- z.effect %>%
             left_join(get.summary.tab(gwas.tab, qtl.tab, plink.obj))
     }
