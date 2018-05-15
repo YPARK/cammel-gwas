@@ -28,6 +28,15 @@ all.genes <- read_tsv('all.genes.txt.gz',
                       skip = 1) %>%
                           na.omit()
 
+library(biomaRt)
+
+grch37 <- useMart(biomart="ENSEMBL_MART_ENSEMBL", host="grch37.ensembl.org",
+                  path="/biomart/martservice", dataset="hsapiens_gene_ensembl")
+
+coding.bm <- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'),
+                   filter = 'biotype', values = 'protein_coding',
+                   mart = grch37)
+
 .list.files <- function(...) list.files(..., full.names = TRUE)
 
 .unlist <- function(...) unlist(..., use.names = FALSE)
@@ -45,7 +54,7 @@ ld.file <- 'ldblocks/nygcresearch-ldetect-data-ac125e47bf7f/EUR/fourier_ls-all.b
 ld.tab <- read_tsv(ld.file) %>%
     rename(ld.lb = start, ld.ub = stop) %>%
         mutate(chr = gsub(chr, pattern = 'chr', replacement = '')) %>%
-            filter(chr %in% as.character(1:22)) %>%
+            dplyr::filter(chr %in% as.character(1:22)) %>%
                 mutate(chr = as.integer(chr))
 
 .read.med <- function(.file) {
@@ -64,30 +73,31 @@ ld.tab <- read_tsv(ld.file) %>%
 med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
     separate(med.id, into = c('med.id', 'factor', 'data'), sep = '@') %>%
         separate(med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
-            select(-remove) %>%
+            dplyr::select(-remove) %>%
                 left_join(all.genes) %>%
-                    group_by(med.id, factor, data) %>% slice(which.max(lodds)) %>%
-                        filter(!is.na(hgnc)) %>%
-                            as.data.frame()
+                    dplyr::filter(hgnc %in% coding.bm$hgnc_symbol) %>%
+                        group_by(med.id, factor, data) %>% slice(which.max(lodds)) %>%
+                            dplyr::filter(!is.na(hgnc)) %>%
+                                as.data.frame()
 
 ## Estimate empirical null distributions -- cohort by cohort
 
 calc.pval <- function(.gwas) {
 
-    .null <- null.stat.tab %>% filter(gwas == .gwas) %>%
-        select(lodds) %>%
-        .unlist()
+    .null <- null.stat.tab %>% dplyr::filter(gwas == .gwas) %>%
+        dplyr::select(lodds) %>%
+            .unlist()
 
     null.cdf <- ecdf(1/(1+exp(-.null)))
 
-    .pval.tab <- med.stat.tab %>% filter(gwas == .gwas) %>%
-        select(chr, ld.lb, ld.ub, med.id, factor, data, gwas, lodds) %>%
+    .pval.tab <- med.stat.tab %>% dplyr::filter(gwas == .gwas) %>%
+        dplyr::select(chr, ld.lb, ld.ub, med.id, factor, data, gwas, lodds) %>%
             mutate(pip = 1/(1+exp(-lodds)))
 
     p.lodds.null <- 1 - null.cdf(.pval.tab$pip)
 
     ret <- .pval.tab %>%
-        select(chr, ld.lb, ld.ub, med.id, factor, data, gwas) %>%
+        dplyr::select(chr, ld.lb, ld.ub, med.id, factor, data, gwas) %>%
             mutate(pval.lodds = p.lodds.null) %>%
                 mutate(pval.lodds = signif(pval.lodds, 2))
 
@@ -98,8 +108,8 @@ take.lfsr <- function(tab, var.min = 1e-4) {
     ret <- mutate(.data = tab, pip = 1/(1+exp(-lodds))) %>%
         mutate(pos.prob = pnorm(0, mean = theta, sd = sqrt(theta.var + var.min))) %>%
             mutate(neg.prob = 1 - pos.prob) %>%
-                mutate(lfsr = 1 - pip * pmax(pos.prob, neg.prob)) %>%                    
-                    select(-pos.prob, -neg.prob, -pip) %>%
+                mutate(lfsr = 1 - pip * pmax(pos.prob, neg.prob)) %>%
+                    dplyr::select(-pos.prob, -neg.prob, -pip) %>%
                         mutate(lfsr = signif(lfsr, 2))
     return(ret)
 }
