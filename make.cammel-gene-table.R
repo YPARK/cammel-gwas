@@ -81,13 +81,13 @@ calc.pval <- function(.gwas) {
     null.cdf <- ecdf(1/(1+exp(-.null)))
 
     .pval.tab <- med.stat.tab %>% filter(gwas == .gwas) %>%
-        select(chr, ld.lb, ld.ub, med.id, factor, gwas, lodds) %>%
+        select(chr, ld.lb, ld.ub, med.id, factor, data, gwas, lodds) %>%
             mutate(pip = 1/(1+exp(-lodds)))
 
     p.lodds.null <- 1 - null.cdf(.pval.tab$pip)
 
     ret <- .pval.tab %>%
-        select(chr, ld.lb, ld.ub, med.id, factor, gwas) %>%
+        select(chr, ld.lb, ld.ub, med.id, factor, data, gwas) %>%
             mutate(pval.lodds = p.lodds.null) %>%
                 mutate(pval.lodds = signif(pval.lodds, 2))
 
