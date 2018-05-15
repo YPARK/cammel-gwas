@@ -10,7 +10,7 @@ if(length(argv) != 4) {
 }
 
 ld.idx <- as.integer(argv[1])           # e.g., ld.idx = 133
-gammax.input <- as.numeric(argv[2])     # e.g., gammax.input = 1e4, 1e3, 1e2
+gammax.input <- as.numeric(argv[2])     # e.g., gammax.input = 1e4
 eig.tol <- as.numeric(argv[3])          # e.g., eig.tol = 1e-2
 out.hdr <- argv[4]                      # e.g., out.hdr = 'temp.cammel'
 
@@ -49,12 +49,20 @@ read.eqtl <- function(ii) {
 }
 
 eqtl.tab <- 1:length(eqtl.data) %>% lapply(FUN = read.eqtl) %>%
-    bind_rows() %>%
-        separate(col = med.id, into = c('med.id', 'factor'), sep = '@') %>%
-            mutate(factor = if_else(is.na(factor), '0', factor)) %>%
-                mutate(factor = as.integer(factor)) %>%
-                    separate(col = med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
-                        select(-remove)
+    bind_rows()
+
+if(nrow(eqtl.tab) < 1) {
+    write_tsv(data.frame(), path = out.tab.file)
+    write_tsv(data.frame(), path = out.null.file)
+    q()
+}
+
+eqtl.tab <- eqtl.tab %>%
+    separate(col = med.id, into = c('med.id', 'factor'), sep = '@') %>%
+        mutate(factor = if_else(is.na(factor), '0', factor)) %>%
+            mutate(factor = as.integer(factor)) %>%
+                separate(col = med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
+                    select(-remove)
 
 eqtl.tab <- eqtl.tab %>%
     mutate(med.id = med.id %&&% '@' %&&% factor %&&% '@' %&&% data) %>%
@@ -110,7 +118,7 @@ gc()
 
 vb.opt <- list(pi.ub = -1, pi.lb = -5, tau = -5,
                do.hyper = TRUE, tol = 1e-8,
-               gammax = gammax.input,
+               gammax = gammax.input, nsingle = 150,
                vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
                rate = 1e-2, nsample = 10, print.interv = 500,
                weight = FALSE, do.rescale = FALSE)

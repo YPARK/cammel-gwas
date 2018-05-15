@@ -11,7 +11,7 @@ long: $(foreach data, mayo geuvadis rosmap, jobs/step2-$(data)-qtl-long.txt.gz j
 
 jobs/%-long.txt.gz: jobs/%.txt.gz
 	zcat $< | awk 'system(" ! [ -f " $$NF " ]") == 0' | gzip > $@
-	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=24:00:00 -b y -j y -N cis_eqtl_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=36:00:00 -b y -j y -N cis_eqtl_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 ################################################################
 jobs/step2-geuvadis-qtl.txt.gz: $(LD)

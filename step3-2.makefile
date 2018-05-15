@@ -14,5 +14,5 @@ jobs/step3-2-%.txt.gz:
 
 jobs/step3-2-%.long.gz: jobs/step3-2-%.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF ".null.gz ]") == 0' | gzip > $@
-	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=36:00:00 -b y -j y -N $*_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N $*_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 

@@ -63,7 +63,7 @@ ld.tab <- read_tsv(ld.file) %>%
 }
 
 med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
-    separate(med.id, into = c('med.id', 'factor'), sep = '@') %>%
+    separate(med.id, into = c('med.id', 'factor', 'data'), sep = '@') %>%
         separate(med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
             select(-remove) %>%
                 left_join(all.genes) %>%
