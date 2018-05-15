@@ -14,7 +14,7 @@ if(length(argv) < 2) {
     q()
 }
 
-med.dir <- argv[1] # e.g., med.dir = 'mediation/ad/rosmap/gammax_3/eigen_1'
+med.dir <- argv[1] # e.g., med.dir = 'mediation.joint/igap/gammax_4/eigen_2'
 out.file <- argv[2]
 
 if(file.exists(out.file)) {
@@ -41,6 +41,7 @@ null.files <- .list.files(path = med.dir, pattern = 'null.gz')
 null.stat.tab <- bind_rows(lapply(null.files, read_tsv))
 
 ld.file <- 'ldblocks/nygcresearch-ldetect-data-ac125e47bf7f/EUR/fourier_ls-all.bed'
+
 ld.tab <- read_tsv(ld.file) %>%
     rename(ld.lb = start, ld.ub = stop) %>%
         mutate(chr = gsub(chr, pattern = 'chr', replacement = '')) %>%
@@ -51,9 +52,7 @@ ld.tab <- read_tsv(ld.file) %>%
     ld.idx <- basename(.file) %>%
         gsub(pattern = '.mediation.gz', replacement = '') %>%
             as.integer()
-
     ret <- read_tsv(.file)
-
     if(!'ld.lb' %in% colnames(ret)) {
         ld.info <- ld.tab[ld.idx, ] %>% unlist()
         ret <- ret %>%
@@ -67,11 +66,9 @@ med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
         separate(med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
             select(-remove) %>%
                 left_join(all.genes) %>%
-                    filter(!is.na(hgnc))
-
-if(all(is.na(med.stat.tab$factor))) {
-    med.stat.tab <- med.stat.tab %>% mutate(factor = '1')
-}
+                    group_by(med.id, factor, data) %>% slice(which.max(lodds)) %>%
+                        filter(!is.na(hgnc)) %>%
+                            as.data.frame()
 
 ## Estimate empirical null distributions -- cohort by cohort
 
