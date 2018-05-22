@@ -183,6 +183,7 @@ subset.plink <- function(plink.hdr, chr, plink.lb, plink.ub, temp.dir) {
         plink.cmd <- sprintf('./bin/plink --bfile %s --make-bed --geno 0.05 --maf 0.05 --chr %d --from-bp %d --to-bp %d --out %s', plink.hdr, chr.num, plink.lb, plink.ub, glue(temp.dir, '/plink'))
         system(plink.cmd)
         
+        options(stringsAsFactors = FALSE)
         plink <- read.plink(glue(temp.dir, '/plink'))
         colnames(plink$BIM) <- c('chr', 'rs', 'missing', 'snp.loc', 'plink.a1', 'plink.a2')
         colnames(plink$FAM) <- c('fam', 'iid', 'father', 'mother', 'sex.code', '.pheno')

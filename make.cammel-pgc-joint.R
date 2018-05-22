@@ -79,7 +79,7 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
                 mutate(qtl.beta = qtl.beta / pmax(qtl.se, 1e-8), qtl.se = 1)
         
         .data <- .matched %>%
-            make.zqtl.data(n.permuted = 30)
+            make.zqtl.data(n.permuted = 20)
         gc()
 
         if(is.null(.data)) {
@@ -88,8 +88,8 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
             return(NULL)
         }
 
-        vb.opt <- list(pi = -1, tau = -5,
-                       do.hyper = FALSE, tol = 1e-8,
+        vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
+                       do.hyper = TRUE, tol = 1e-8,
                        gammax = gammax.input, nsingle = 100,
                        vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
                        rate = 1e-2, nsample = 10, print.interv = 500,
@@ -113,7 +113,7 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
         out.tab <- out.tab %>%
             mutate(ld.idx = ld.idx,
                    gwas.p.ld = min(.matched$gwas.p),
-                   num.genes.ld = nrow(out.tab))
+                   num.genes.ld = nrow(summary.tab))
         
         write_tsv(out.tab, path = .out.file)
     }

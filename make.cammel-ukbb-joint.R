@@ -68,7 +68,7 @@ if(nrow(eqtl.tab) == 0) {
                 mutate(qtl.beta = qtl.beta / pmax(qtl.se, 1e-8), qtl.se = 1)
 
         .data <- .matched %>%
-            make.zqtl.data(n.permuted = 30)
+            make.zqtl.data(n.permuted = 20)
         gc()
 
         if(is.null(.data)) {
@@ -77,8 +77,8 @@ if(nrow(eqtl.tab) == 0) {
             return(NULL)
         }
 
-        vb.opt <- list(pi = -1, tau = -5,
-                       do.hyper = FALSE, tol = 1e-8,
+        vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
+                       do.hyper = TRUE, tol = 1e-8,
                        gammax = gammax.input, nsingle = 100,
                        vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
                        rate = 1e-2, nsample = 10, print.interv = 500,
@@ -110,11 +110,11 @@ if(nrow(eqtl.tab) == 0) {
 
 gwas.file <- gwas.dir %&&% 'ukbb_ad_mat_' %&&% ld.idx %&&% '.txt.gz'
 out.file <- out.hdr %&&% '.ad_mat.gz'
-.run(gwas.file, out.file, 'ukbb.mat')
+.run(gwas.file, out.file, 'ukbb.ad_mat')
 
 gwas.file <- gwas.dir %&&% 'ukbb_ad_pat_' %&&% ld.idx %&&% '.txt.gz'
 out.file <- out.hdr %&&% '.ad_pat.gz'
-.run(gwas.file, out.file, 'ukbb.pat')
+.run(gwas.file, out.file, 'ukbb.ad_pat')
 
 gwas.file <- gwas.dir %&&% 'ukbb_neuroticism_' %&&% ld.idx %&&% '.txt.gz'
 out.file <- out.hdr %&&% '.neuroticism.gz'

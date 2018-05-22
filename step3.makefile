@@ -7,13 +7,13 @@ prepare:
 	qsub -P compbio_lab -binding linear:1 -cwd -V -l h_vmem=16g -l h_rt=24:00:00 -b y -j y -N igap_gwas ./run.sh ./make.distribute-gwas.R
 	qsub -P compbio_lab -binding linear:1 -cwd -V -l h_vmem=16g -l h_rt=24:00:00 -b y -j y -N igap_gwas ./run.sh ./make.distribute-gwas-ptsd.R
 
-run-jobs: $(foreach gwas, pgc igap ukbb, jobs/step3-$(gwas).txt.gz)
+run-jobs: $(foreach gwas, ukbb igap pgc, jobs/step3-$(gwas).txt.gz)
 
-long: $(foreach gwas, pgc igap ukbb, jobs/step3-$(gwas).long.gz)
+long: $(foreach gwas, ukbb igap pgc, jobs/step3-$(gwas).long.gz)
 
 jobs/step3-%.txt.gz:
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	seq 1 $(NBLOCKS) | awk '{ g = 4; for(e = 3; e >= 2; --e) print "./make.cammel-$*-joint.R" FS $$1 FS ("1e"g) FS ("1e-"e) FS ("mediation.joint/$*/gammax_" g "/eigen_" e "/" $$1) }' | gzip >> $@
+	seq 1 $(NBLOCKS) | awk '{ for(g = 2; g <= 4; g += 2) for(e = 3; e >= 2; --e) print "./make.cammel-$*-joint.R" FS $$1 FS ("1e"g) FS ("1e-"e) FS ("mediation.joint/$*/gammax_" g "/eigen_" e "/" $$1) }' | gzip >> $@
 	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=8:00:00 -b y -j y -N cammel_$* -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/step3-igap.long.gz: jobs/step3-igap.txt.gz

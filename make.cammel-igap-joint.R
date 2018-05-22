@@ -81,7 +81,7 @@ igap.matched <- igap.gwas.tab %>%
         mutate(qtl.beta = qtl.beta / pmax(qtl.se, 1e-8), qtl.se = 1)
 
 igap.data <- igap.matched %>%
-    make.zqtl.data(n.permuted = 30)
+    make.zqtl.data(n.permuted = 20)
 gc()
 
 if(is.null(igap.data)) {
@@ -93,8 +93,8 @@ if(is.null(igap.data)) {
 
 if(!file.exists(out.tab.file)) {
 
-    vb.opt <- list(pi = -1, tau = -5,
-                   do.hyper = FALSE, tol = 1e-8,
+    vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
+                   do.hyper = TRUE, tol = 1e-8,
                    gammax = gammax.input, nsingle = 100,
                    vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
                    rate = 1e-2, nsample = 10, print.interv = 500,
@@ -118,15 +118,15 @@ if(!file.exists(out.tab.file)) {
     out.tab <- out.tab %>%
         mutate(ld.idx = ld.idx,
                gwas.p.ld = min(igap.matched$gwas.p),
-               num.genes.ld = nrow(out.tab))
+               num.genes.ld = nrow(summary.tab))
 
     write_tsv(out.tab, path = out.tab.file)
 }
 
 if(!file.exists(out.null.file)) {
 
-    vb.opt <- list(pi = -1, tau = -5,
-                   do.hyper = FALSE, tol = 1e-8,
+    vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
+                   do.hyper = TRUE, tol = 1e-8,
                    gammax = gammax.input, nsingle = 100,
                    vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
                    rate = 1e-2, nsample = 10, print.interv = 500,
