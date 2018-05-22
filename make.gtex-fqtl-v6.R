@@ -12,7 +12,7 @@ if(length(argv) < 4) {
 chr.input <- as.integer(argv[1])   # chr.input = 1
 ld.lb.input <- as.integer(argv[2]) # ld.lb.input = 11777841
 ld.ub.input <- as.integer(argv[3]) # ld.ub.input = 12779466
-out.file <- argv[4]
+out.file <- argv[4]                # out.file = 'temp.txt.gz'
 
 if(file.exists(out.file)) {
     log.msg('File exists: %s\n', out.file)
@@ -51,11 +51,11 @@ if(nrow(gtex.stat) < 1) {
 
 gtex.stat <- gtex.stat %>%
     mutate(med.id = ensg %&&% '@' %&&% factor) %>%
-        select(med.id, snp.names, snp.theta)  %>%
-            unnest(snp = .split.bar(snp.names), theta = .split.bar(snp.theta)) %>%
+        select(med.id, snp.names, snp.theta, snp.se, snp.lodds)  %>%
+            unnest(snp = .split.bar(snp.names), theta = .split.bar(snp.theta), theta.se = .split.bar(snp.se), lodds = .split.bar(snp.lodds)) %>%
                 select(-snp.names, -snp.theta)
 
-snp.cols <- c('chr', 'snp.loc', 'plink.a1', 'plink.a2', 'remove')
+snp.cols <- c('chr', 'snp.loc', 'a1', 'a2', 'remove')
 
 gtex.stat <-
     gtex.stat %>%
@@ -64,44 +64,50 @@ gtex.stat <-
                 select(-remove) %>%
                     mutate(snp.loc = as.integer(snp.loc),
                            theta = as.numeric(theta),
+                           theta.se = as.numeric(theta.se),
+                           lodds = as.numeric(lodds),
                            chr = as.integer(chr))
 
-## Read genotype matrix and expand it to univariate statistics
+## compare two plink bim files
+read.bim <- function(plink.hdr, plink.lb, plink.ub) {
+    bim <- read_tsv(plink.hdr %&&% '.bim',
+                    col_names = c('chr', 'rs', 'missing', 'snp.loc', 'a1', 'a2'),
+                    col_types = 'iciicc')
 
-temp.dir <- system('mkdir -p /broad/hptmp/ypp/cammel.gtex-fqtl/' %&&% out.file %&&%
-                   '; mktemp -d /broad/hptmp/ypp/cammel.gtex-fqtl/' %&&% out.file %&&%
-                   '/temp.XXXXXXXX',
-                   intern = TRUE,
-                   ignore.stderr = TRUE)
-
-plink.hdr <- geno.dir %&&% '/chr' %&&% chr.input
-
-plink.eqtl <- subset.plink(plink.hdr, chr.input, ld.lb.input, ld.ub.input, temp.dir)
-
-if(is.null(plink.eqtl)){
-    write_tsv(data.frame(), path = out.file)
-    log.msg('Just wrote empty QTL files!\n')
-    system('rm -r ' %&&% temp.dir)    
-    q()
+    bim <- bim %>% filter(snp.loc >= plink.lb, snp.loc <= plink.ub)
+    return(bim)
 }
 
-plink.gwas <- subset.plink('1KG_EUR/chr' %&&% chr.input,
-                           chr.input, ld.lb.input, ld.ub.input, temp.dir)
+match.bim <- function(gwas.bim, qtl.bim) {
 
-## Read and match two PLINK filesets
-plink.matched <- match.plink(plink.gwas, plink.eqtl)
+    gwas.bim <- gwas.bim %>%
+        mutate(gwas.x.pos = 1:n()) %>%
+            rename(gwas.plink.a1 = a1,
+                   gwas.plink.a2 = a2) %>%
+                       select(-missing)
 
-if(is.null(plink.matched)) {
-    write_tsv(data.frame(), path = out.file)
-    log.msg('Just wrote empty QTL files!\n')
-    system('rm -r ' %&&% temp.dir)    
-    q()
+    qtl.bim <- qtl.bim %>%
+        mutate(qtl.x.pos = 1:n()) %>%
+            rename(qtl.plink.a1 = a1,
+                   qtl.plink.a2 = a2,
+                   qtl.rs = rs) %>%
+                       select(-missing)
+
+    bim.matched <- gwas.bim %>%
+        left_join(qtl.bim) %>%
+            na.omit()
+
+    return(bim.matched)
 }
 
-plink.gwas <-  plink.matched$gwas
-plink.eqtl <-  plink.matched$qtl
+gtex.bim <- (geno.dir %&&% '/chr' %&&% chr.input) %>%
+    read.bim(plink.lb = ld.lb.input, plink.ub = ld.ub.input)
+gwas.bim <- ('1KG_EUR/chr' %&&% chr.input) %>%
+    read.bim(plink.lb = ld.lb.input, plink.ub = ld.ub.input)
+matched.bim <- match.bim(gwas.bim, gtex.bim) %>%
+    filter(gwas.plink.a1 == qtl.plink.a1, gwas.plink.a2 == qtl.plink.a2)
 
-if(is.null(plink.eqtl)){
+if(nrow(matched.bim) == 0) {
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)    
@@ -109,38 +115,19 @@ if(is.null(plink.eqtl)){
 }
 
 ################################################################
-x.bim <- plink.gwas$BIM %>%
-    mutate(x.col = 1:n()) %>%
-        select(-missing)
+gtex.snp.stat <- gtex.stat %>%
+    select(med.id, snp.loc, a1, a2, theta, theta.se, lodds)
 
-gtex.stat.bim <- gtex.stat %>%
-    select(-rs) %>%
-        rename(a1 = plink.a1, a2 = plink.a2) %>%
-            left_join(x.bim) %>%
-                na.omit() %>%
-                    mutate(theta = if_else(a1 != plink.a1, -theta, theta))
+qtl.out <- gtex.snp.stat %>% left_join(matched.bim) %>% na.omit() %>%
+    select(-qtl.rs) %>%
+        rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds)
 
-if(nrow(gtex.stat.bim) < 1) {
-    write_tsv(data.frame(), path = out.file)
-    log.msg('Just wrote empty QTL files!\n')
-    system('rm -r ' %&&% temp.dir)    
-    q()
-}
+qtl.out <- qtl.out %>%
+    mutate(qtl.beta = if_else(a2 != gwas.plink.a1, -qtl.beta, qtl.beta))    
 
-X <- plink.gwas$BED %>% scale()
-
-multi.to.uni <- function(tab) {
-    eta <- (X %c% tab$x.col) %*% matrix(as.numeric(tab$theta), ncol = 1)
-    ret <- calc.qtl.stat(X, eta) %>%
-        left_join(x.bim) %>%
-            rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
-                mutate(qtl.beta = signif(beta, 4), qtl.z = signif(beta/se, 4))
-}
-
-qtl.out <- gtex.stat.bim %>% group_by(med.id) %>%
-    do(stat = multi.to.uni(.)) %>%
-        unnest() %>%
-            select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
+qtl.out <- qtl.out %>%
+    rename(qtl.a1 = gwas.plink.a1, qtl.a2 = gwas.plink.a2) %>%
+        select(chr, rs, snp.loc, med.id, qtl.a1, qtl.a2, qtl.beta, qtl.se, qtl.lodds)
 
 write_tsv(x = qtl.out, path = out.file)
 system('rm -r ' %&&% temp.dir)

@@ -95,7 +95,7 @@ plink.eqtl <-  plink.matched$qtl
 ## Read QTL statistics and measure basic statistics
 ## chr rs snp.loc med.id qtl.a1 qtl.a2 qtl.beta qtl.z
 ## i   c  i       c      c      c      d        d
-qtl.tab <- read_tsv(qtl.file, col_types = 'icicccdd')
+clqtl.tab <- read_tsv(qtl.file, col_types = 'icicccdd')
 
 if(nrow(qtl.tab) == 0) {
     write_tsv(data.frame(), path = out.tab.file)

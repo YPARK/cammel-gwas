@@ -36,7 +36,9 @@ library(readr)
 library(methods)
 
 covar.tab.full <- read_tsv(covar.file)
-genes.info <- read_tsv(gene.file) %>% mutate(idx = 1:n())
+genes.info <- read_tsv(gene.file) %>%
+    mutate(idx = 1:n())  %>%
+        simplify.ensg()
 sample.info <- read_tsv(sample.file)
 
 Y <- read_tsv(expr.file) %>% as.matrix() %>% t()
@@ -47,13 +49,19 @@ ld.genes <-
         filter(chr == chr.input) %>%
             filter(gene.loc > (ld.lb.input - cis.dist), gene.loc < (ld.ub.input + cis.dist))
 
-gene.idx <- ld.genes$idx
+## Include only coding genes
+coding.genes <- read_tsv('coding.genes.txt.gz') %>% na.omit()
+
+ld.genes <- ld.genes %>%    
+    filter(ensg %in% coding.genes$ensg)
 
 if(nrow(ld.genes) < 1) {
     log.msg('No valid gene\n')
     write_tsv(data.frame(), path = out.file)
     q()
 }
+
+gene.idx <- ld.genes$idx
 
 ################################################################
 ## Only consider European samples
@@ -158,7 +166,7 @@ trans.normal <- function(...){
 ctrl.idx <- find.cor.idx(Y1 %>% trans.normal(),
                          Y0 %>% trans.normal(),
                          n.ctrl = nn.ctrl,
-                         p.val.cutoff = 1e-2)
+                         p.val.cutoff = 1e-4)
 
 Y0.ctrl <- Y0 %c% ctrl.idx %>% as.matrix() %>% stdize.count()
 genes.ctrl <- other.genes %r% ctrl.idx
@@ -236,59 +244,29 @@ y1.out <- fqtl.regress(y = Y1,
                        c.mean = covar.mat.combined,
                        opt = opt.reg)
 
-pip.cutoff <- 0.9
-logit <- function(x) log(x) - log(1 - x)
-lodds.cutoff <- logit(pip.cutoff)
+out.tab <- effect2tab(y1.out$mean) %>%
+    rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds) %>%
+        rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
+            select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
 
-mat2tab <- function(mat, val.name) {
+lodds.cutoff <- 0 # at least one pip > .5
 
-    ret <- as.matrix(mat) %>% as.data.frame()
-    col.names <- 1:ncol(ret)
-    colnames(ret) <- col.names
+valid.med <- out.tab %>%
+    group_by(med.id) %>%
+        slice(which.max(qtl.lodds)) %>%
+            filter(qtl.lodds > lodds.cutoff) %>%
+                select(med.id) %>%
+                    .unlist()
 
-    ret <- ret %>%
-        mutate(x.col = 1:n()) %>%
-            gather_(key_col= 'y.col', value_col = val.name, col.names)
+qtl.out <- out.tab %>%
+    filter(med.id %in% valid.med)
 
-    return(ret)
-}
-
-effect2tab <- function(effect, lodds.cutoff) {
-    ret <- effect$lodds %>% mat2tab(val.name = 'lodds') %>%
-        filter(lodds > lodds.cutoff) %>%
-            left_join(effect$theta %>% mat2tab(val.name = 'theta')) %>%
-                left_join(effect$theta.var %>% mat2tab(val.name = 'theta.var')) %>%
-                    mutate(theta.se = sqrt(theta.var)) %>%
-                        select(-theta.var) %>%
-                            filter(abs(theta.se) > 1e-8) %>%
-                                mutate(x.col = as.integer(x.col)) %>%
-                                    mutate(y.col = as.integer(y.col))
-}
-
-mult.tab <- effect2tab(y1.out$mean, lodds.cutoff) %>%
-    left_join(genes.Y1)
-
-if(nrow(mult.tab) < 1){
+if(nrow(qtl.out) < 1){
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)
     q()
 }
-
-X <- plink.gwas$BED
-
-multi.to.uni <- function(tab) {
-    eta <- (X %c% tab$x.col) %*% matrix(as.numeric(tab$theta), ncol = 1)
-    ret <- calc.qtl.stat(X, eta) %>%
-        left_join(x.bim) %>%
-            rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
-                mutate(qtl.beta = signif(beta, 4), qtl.z = signif(beta/se, 4))
-}
-
-qtl.out <- mult.tab %>% group_by(med.id) %>%
-    do(stat = multi.to.uni(.)) %>%
-        unnest() %>%
-            select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
 
 write_tsv(x = qtl.out, path = out.file)
 

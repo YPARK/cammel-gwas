@@ -12,7 +12,7 @@ if(length(argv) < 4) {
 chr.input <- as.integer(argv[1])   # chr.input = 19
 ld.lb.input <- as.integer(argv[2]) # ld.lb.input = 8347513
 ld.ub.input <- as.integer(argv[3]) # ld.ub.input = 9238393
-out.file <- argv[4]
+out.file <- argv[4]                # out.file = 'temp.txt.gz'
 
 dir.create(dirname(out.file), recursive = TRUE, showWarnings = FALSE)
 
@@ -44,19 +44,21 @@ library(methods)
 gene.info.files <- expr.dir %&&% '/chr' %&&% 1:22 %&&% '.info.gz'
 expr.files <- expr.dir %&&% '/chr' %&&% 1:22 %&&% '.data.gz'
 
+.read.tsv <- function(...) suppressMessages(read_tsv(...))
+
 ################################################################
 ## Find potential regulatory genes
 info.cols <- c('ensg', 'chr', 'tss', 'tes', 'hgnc')
-genes.info <- bind_rows(lapply(gene.info.files, read_tsv, col_names = info.cols)) %>%
+genes.info <- bind_rows(lapply(gene.info.files, .read.tsv, col_names = info.cols)) %>%
     mutate(hgnc = if_else(is.na(hgnc) | nchar(hgnc) < 1, ensg, hgnc))
 
 ################################################################
 ## Read the whole data and size adjustment using geometric mean
-Y <- bind_cols(lapply(expr.files, read_tsv, col_names = FALSE)) %>%
+Y <- bind_cols(lapply(expr.files, .read.tsv, col_names = FALSE)) %>%
     adjust.size.factor() %>%
         as.matrix()
 
-covar.tab <- read_tsv(covar.file)
+covar.tab <- .read.tsv(covar.file)
 
 ## remove genes with too many zeros or NAs
 .temp <- apply(Y < 1, 2, mean, na.rm = TRUE)
@@ -64,7 +66,6 @@ covar.tab <- read_tsv(covar.file)
 
 if(length(.rm) > 0) {
     Y <- (Y %c% - .rm) %>% adjust.size.factor()
-    
     genes.info <- (genes.info %r% -.rm) %>%
         mutate(idx = 1:n())
 }
@@ -74,6 +75,12 @@ ld.genes <-
     genes.info %>%
         filter(chr == chr.input) %>%
             filter(tss > ld.lb.input - cis.dist, tes < ld.ub.input + cis.dist)
+
+## Include only coding genes
+coding.genes <- read_tsv('coding.genes.txt.gz') %>% na.omit()
+
+ld.genes <- ld.genes %>%    
+    filter(ensg %in% coding.genes$ensg)
 
 if(nrow(ld.genes) < 1) {
     write_tsv(x = data.frame(), path = out.file)
@@ -119,7 +126,7 @@ trans.normal <- function(...){
 ctrl.idx <- find.cor.idx(Y1 %>% trans.normal(),
                          Y0 %>% trans.normal(),
                          n.ctrl = nn.ctrl,
-                         p.val.cutoff = 1e-2)
+                         p.val.cutoff = 1e-4)
 
 Y0.ctrl <- Y0 %c% ctrl.idx %>% as.matrix()
 genes.ctrl <- other.genes %r% ctrl.idx
@@ -146,7 +153,7 @@ plink.matched <- match.plink(plink.gwas, plink.eqtl)
 if(is.null(plink.matched)) {
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
-    system('rm -r ' %&&% temp.dir)    
+    system('rm -r ' %&&% temp.dir)
     q()
 }
 
@@ -156,7 +163,7 @@ plink.eqtl <-  plink.matched$qtl
 if(is.null(plink.eqtl)){
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
-    system('rm -r ' %&&% temp.dir)    
+    system('rm -r ' %&&% temp.dir)
     q()
 }
 
@@ -237,12 +244,12 @@ if(ncol(Y0.ctrl) > 0) {
     y0.covar <- matrix(nrow = nrow(covar.mat), ncol = 0)
 }
 
+################################################################
 ## Estimate multivariate models
 covar.mat.combined <- cbind(covar.mat, y0.covar)
 
 xx.std <- plink.eqtl$BED %r% pos.df$x.pos %>% scale()
 
-################################################################
 opt.reg <- list(vbiter = 5000, gammax = 1e4, tol = 1e-8, rate = 1e-2,
                 pi = -1, tau = -4, do.hyper = FALSE, jitter = 0.01,
                 model = 'nb', out.residual = FALSE, print.interv = 100)
@@ -252,59 +259,29 @@ y1.out <- fqtl.regress(y = Y1 %r% pos.df$y.pos,
                        c.mean = covar.mat.combined %r% pos.df$y.pos,
                        opt = opt.reg)
 
-pip.cutoff <- 0.9
-logit <- function(x) log(x) - log(1 - x)
-lodds.cutoff <- logit(pip.cutoff)
+out.tab <- effect2tab(y1.out$mean) %>%
+    rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds) %>%
+        rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
+            select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
 
-mat2tab <- function(mat, val.name) {
+lodds.cutoff <- 0 # at least one pip > .5
 
-    ret <- as.matrix(mat) %>% as.data.frame()
-    col.names <- 1:ncol(ret)
-    colnames(ret) <- col.names
+valid.med <- out.tab %>%
+    group_by(med.id) %>%
+        slice(which.max(qtl.lodds)) %>%
+            filter(qtl.lodds > lodds.cutoff) %>%
+                select(med.id) %>%
+                    .unlist()
 
-    ret <- ret %>%
-        mutate(x.col = 1:n()) %>%
-            gather_(key_col= 'y.col', value_col = val.name, col.names)
+qtl.out <- out.tab %>%
+    filter(med.id %in% valid.med)
 
-    return(ret)
-}
-
-effect2tab <- function(effect, lodds.cutoff) {
-    ret <- effect$lodds %>% mat2tab(val.name = 'lodds') %>%
-        filter(lodds > lodds.cutoff) %>%
-            left_join(effect$theta %>% mat2tab(val.name = 'theta')) %>%
-                left_join(effect$theta.var %>% mat2tab(val.name = 'theta.var')) %>%
-                    mutate(theta.se = sqrt(theta.var)) %>%
-                        select(-theta.var) %>%
-                            filter(abs(theta.se) > 1e-8) %>%
-                                mutate(x.col = as.integer(x.col)) %>%
-                                    mutate(y.col = as.integer(y.col))
-}
-
-mult.tab <- effect2tab(y1.out$mean, lodds.cutoff) %>%
-    left_join(genes.Y1)
-
-if(nrow(mult.tab) < 1){
+if(nrow(qtl.out) < 1){
     write_tsv(data.frame(), path = out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)
     q()
 }
-
-X <- plink.gwas$BED
-
-multi.to.uni <- function(tab) {
-    eta <- (X %c% tab$x.col) %*% matrix(as.numeric(tab$theta), ncol = 1)
-    ret <- calc.qtl.stat(X, eta) %>%
-        left_join(x.bim) %>%
-            rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
-                mutate(qtl.beta = signif(beta, 4), qtl.z = signif(beta/se, 4))
-}
-
-qtl.out <- mult.tab %>% group_by(med.id) %>%
-    do(stat = multi.to.uni(.)) %>%
-        unnest() %>%
-            select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
 
 write_tsv(x = qtl.out, path = out.file)
 

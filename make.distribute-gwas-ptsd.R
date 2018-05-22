@@ -62,9 +62,9 @@ proc.gwas <- function(gwas.file, gwas.name) {
 }
 
 gwas.file <- 'PTSD/military_wave_1.5/ancestry_specific_military/EA/EA_military_7_wave1.51.txt.gz'
-gwas.name <- 'ptsd_mil_ea'
+gwas.name <- 'pgc_ptsd_mil_ea'
 proc.gwas(gwas.file, gwas.name)
 
 gwas.file <- 'PTSD/civilian_wave_1.5/ancestry_specific_civilian/EA/EA_civilian_5_wave1.51.txt.gz'
-gwas.name <- 'ptsd_civ_ea'
+gwas.name <- 'pgc_ptsd_civ_ea'
 proc.gwas(gwas.file, gwas.name)
