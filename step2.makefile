@@ -5,7 +5,7 @@ NBLOCKS := $(shell cat $(LD) 2> /dev/null | tail -n+2 | wc -l)
 ldlist := $(shell seq 1 $(NBLOCKS))
 TEMPDIR := /broad/hptmp/ypp/cammel-gwas/tempdata
 
-all: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl.txt.gz jobs/step2-$(data)-qtl-mult.txt.gz) jobs/step2-gtex-qtl-mult.txt.gz
+all: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl.txt.gz jobs/step2-$(data)-qtl-mult.txt.gz) jobs/step2-gtex-qtl-mult.txt.gz jobs/step2-gtex-v8-qtl-mult.txt.gz
 
 long: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl-long.txt.gz jobs/step2-$(data)-qtl-mult-long.txt.gz)
 
@@ -62,4 +62,10 @@ jobs/step2-gtex-qtl-mult.txt.gz: $(LD)
 	@mkdir -p cis-eqtl/gtex-fqtl-v6/
 	@cat $< | tail -n+2 | sed 's/chr//' | awk '{ print "./make.gtex-fqtl-v6.R" FS $$1 FS $$2 FS $$3 FS ("cis-eqtl/gtex-fqtl-v6/" NR "_qtl.txt.gz") }' | gzip > $@
 	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=1:00:00 -b y -j y -N gtex_eqtl -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+
+jobs/step2-gtex-v8-qtl-mult.txt.gz: $(LD)
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	@mkdir -p cis-eqtl/gtex-fqtl-v8/
+	@cat $< | tail -n+2 | sed 's/chr//' | awk '{ print "./make.gtex-fqtl-v8.R" FS $$1 FS $$2 FS $$3 FS ("GTEX_v8_FQTL/fqtl_" $$1 ".txt.gz") FS ("cis-eqtl/gtex-fqtl-v8/" NR "_qtl.txt.gz") }' | gzip > $@
+	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=2g -l h_rt=00:30:00 -b y -j y -N gtex_eqtl -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
