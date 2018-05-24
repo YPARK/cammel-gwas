@@ -64,8 +64,7 @@ if(nrow(eqtl.tab) == 0) {
         .gwas.tab <- read.gwas(.gwas.file)
 
         .matched <- .gwas.tab %>%
-            match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab) %>%
-                mutate(qtl.beta = qtl.beta / pmax(qtl.se, 1e-8), qtl.se = 1)
+            match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab)
 
         .data <- .matched %>%
             make.zqtl.data(n.permuted = 20)
@@ -77,11 +76,10 @@ if(nrow(eqtl.tab) == 0) {
             return(NULL)
         }
 
-        vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
-                       do.hyper = TRUE, tol = 1e-8,
+        vb.opt <- list(pi.ub = -1/2, pi.lb = -2, tau = -5, do.hyper = TRUE, tol = 1e-8,                       
                        gammax = gammax.input, nsingle = 100,
-                       vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
-                       rate = 1e-2, nsample = 10, print.interv = 500,
+                       vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+                       rate = 1e-2, decay = -1e-2, nsample = 11, print.interv = 500,
                        weight = FALSE, do.rescale = TRUE,
                        multivar.mediator = TRUE)
         
@@ -104,6 +102,11 @@ if(nrow(eqtl.tab) == 0) {
                    gwas.p.ld = min(.matched$gwas.p),
                    num.genes.ld = nrow(summary.tab))
         
+        if(sum(out.tab$lodds > 0) > 0) {
+            z.tab.file <- gsub(.out.file, pattern = '.gz', replacement = '.zscore.gz')
+            zscore.tab <- separate.zscore(z.out, plink.gwas$BIM %r% .data$x.pos)
+            write_tsv(zscore.tab, path = z.tab.file)
+        }
         write_tsv(out.tab, path = .out.file)
     }
 }

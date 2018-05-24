@@ -13,16 +13,16 @@ long: $(foreach gwas, ukbb igap pgc, jobs/step3-$(gwas).long.gz)
 
 jobs/step3-%.txt.gz:
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	seq 1 $(NBLOCKS) | awk '{ for(g = 2; g <= 4; g += 2) for(e = 3; e >= 2; --e) print "./make.cammel-$*-joint.R" FS $$1 FS ("1e"g) FS ("1e-"e) FS ("mediation.joint/$*/gammax_" g "/eigen_" e "/" $$1) }' | gzip >> $@
-	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=8:00:00 -b y -j y -N cammel_$* -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	seq 1 $(NBLOCKS) | awk '{ for(g = 4; g <= 4; ++g) for(e = 2; e >= 2; --e) print "./make.cammel-$*-joint.R" FS $$1 FS ("1e"g) FS ("1e-"e) FS ("mediation.joint/$*/gammax_" g "/eigen_" e "/" $$1) }' | gzip >> $@
+	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=2g -l h_rt=2:00:00 -b y -j y -N cammel_$* -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/step3-igap.long.gz: jobs/step3-igap.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF ".null.gz ]") == 0' | gzip > $@
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N igap_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
-jobs/step3-igap.long.gz: jobs/step3-pgc.txt.gz
+jobs/step3-pgc.long.gz: jobs/step3-pgc.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF ".pgc_mdd.gz ]") == 0' | gzip > $@
-	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N igap_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N pgc_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/step3-ukbb.long.gz: jobs/step3-ukbb.txt.gz
 	zcat $< | awk 'system("! [ -f " $$NF ".moodswings.gz ]") == 0' | gzip > $@

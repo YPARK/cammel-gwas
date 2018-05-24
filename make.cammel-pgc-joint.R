@@ -75,9 +75,8 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
         .gwas.tab <- read.gwas(.gwas.file)
 
         .matched <- .gwas.tab %>%
-            match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab) %>%
-                mutate(qtl.beta = qtl.beta / pmax(qtl.se, 1e-8), qtl.se = 1)
-        
+            match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab)
+
         .data <- .matched %>%
             make.zqtl.data(n.permuted = 20)
         gc()
@@ -88,33 +87,37 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
             return(NULL)
         }
 
-        vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
-                       do.hyper = TRUE, tol = 1e-8,
+        vb.opt <- list(pi.ub = -1/2, pi.lb = -2, tau = -5, do.hyper = TRUE, tol = 1e-8,
                        gammax = gammax.input, nsingle = 100,
-                       vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
-                       rate = 1e-2, nsample = 10, print.interv = 500,
+                       vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+                       rate = 1e-2, decay = -1e-2, nsample = 11, print.interv = 500,
                        weight = FALSE, do.rescale = TRUE,
                        multivar.mediator = TRUE)
-        
+
         z.out <- .data %>%
             run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.gwas$BED, opt = vb.opt)
-        
+
         var.tab <- get.var.tab(z.out$var.decomp, .data$mediators) %>%
             select(med.id, var.mediated, var.direct.tot)
-        
+
         summary.tab <- .matched %>% group_by(med.id) %>% slice(which.max(abs(qtl.z))) %>%
             select(med.id, gwas.p, gwas.z)
-        
+
         out.tab <- melt.effect(z.out$param.mediated, .data$mediators, .gwas) %>%
             rename(med.id = Var1, gwas = Var2) %>%
                 left_join(var.tab) %>%
                     left_join(summary.tab)
-        
+
         out.tab <- out.tab %>%
             mutate(ld.idx = ld.idx,
                    gwas.p.ld = min(.matched$gwas.p),
                    num.genes.ld = nrow(summary.tab))
-        
+
+        if(sum(out.tab$lodds > 0) > 0) {
+            z.tab.file <- gsub(.out.file, pattern = '.gz', replacement = '.zscore.gz')
+            zscore.tab <- separate.zscore(z.out, plink.gwas$BIM %r% .data$x.pos)
+            write_tsv(zscore.tab, path = z.tab.file)
+        }
         write_tsv(out.tab, path = .out.file)
     }
 }

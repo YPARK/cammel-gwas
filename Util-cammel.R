@@ -499,6 +499,7 @@ read.gwas <- function(gwas.file, se.reg = 1e-4) {
     return(ret)
 }
 
+################################################################
 ## read multiple eQTL effect sizes
 read.multivar.eqtl <- function(eqtl.data, eqtl.data.files) {
     require(dplyr)
@@ -532,7 +533,7 @@ read.multivar.eqtl <- function(eqtl.data, eqtl.data.files) {
         if(nrow(ret) == 0) return(NULL)
 
         ret <- ret %>% mutate(data = eqtl.data[ii]) %>%
-            mutate(rs = 1 %&&% "_" %&&% snp.loc)
+            mutate(rs = chr %&&% "_" %&&% snp.loc)
 
         ret <- ret %>%
             select(chr, rs, snp.loc, med.id, qtl.a1, qtl.a2, qtl.beta, qtl.se)
@@ -566,4 +567,33 @@ read.multivar.eqtl <- function(eqtl.data, eqtl.data.files) {
         mutate(qtl.z = qtl.beta / qtl.se)
 
     return(eqtl.tab)
+}
+
+################################################################
+## Separate z-scores by mediation
+separate.zscore <- function(zqtl.out, x.bim) {
+    require(dplyr)
+
+    z.obs <- t(zqtl.out$Vt) %*% zqtl.out$Y %>% as.numeric()
+
+    z.unmed.mat <- zqtl.out$resid.Z
+
+    z.unmed <- apply(z.unmed.mat, 1, mean, na.rm = TRUE) %>%
+        matrix(ncol=1) %*%
+            zqtl.out$param.unmediated$theta %>%
+                as.numeric()
+
+    z.unmed.sd <- apply(z.unmed.mat, 1, sd, na.rm = TRUE) %>%
+        matrix(ncol=1) %*%
+            zqtl.out$param.unmediated$theta %>%
+                as.numeric()
+
+    z.med.hat <- t(zqtl.out$Vt) %*% zqtl.out$M %*% zqtl.out$param.mediated$theta %>%
+        as.numeric()
+
+    ret <- tibble(snp.loc = x.bim$snp.loc,
+                  obs = z.obs,
+                  unmed = z.unmed,
+                  unmed.sd = z.unmed.sd,
+                  med = z.med.hat)
 }

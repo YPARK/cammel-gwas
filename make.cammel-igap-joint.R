@@ -18,9 +18,10 @@ out.hdr <- argv[4]                      # e.g., out.hdr = 'temp.cammel'
 dir.create(dirname(out.hdr), recursive = TRUE, showWarnings = FALSE)
 
 out.tab.file <- out.hdr %&&% '.mediation.gz'
+z.tab.file <- out.hdr %&&% '.zscores.gz'
 out.null.file <- out.hdr %&&% '.null.gz'
 
-.files <- c(out.tab.file, out.null.file)
+.files <- c(out.tab.file, out.null.file, z.tab.file)
 if(all(sapply(.files, file.exists))) {
     log.msg('all the output files exist: %s\n', paste(.files, collapse = ', '))
     q()
@@ -68,6 +69,7 @@ plink.gwas <- subset.plink('1KG_EUR/chr' %&&% chr.input,
 
 if(nrow(eqtl.tab) == 0) {
     write_tsv(data.frame(), path = out.tab.file)
+    write_tsv(data.frame(), path = z.tab.file)
     write_tsv(data.frame(), path = out.null.file)
     log.msg('Empty QTL file\n')
     q()
@@ -77,8 +79,7 @@ igap.gwas.tab <- read.gwas(igap.gwas.file)
 
 ################################################################
 igap.matched <- igap.gwas.tab %>%
-    match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab) %>%
-        mutate(qtl.beta = qtl.beta / pmax(qtl.se, 1e-8), qtl.se = 1)
+    match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab)
 
 igap.data <- igap.matched %>%
     make.zqtl.data(n.permuted = 20)
@@ -86,6 +87,7 @@ gc()
 
 if(is.null(igap.data)) {
     write_tsv(data.frame(), path = out.tab.file)
+    write_tsv(data.frame(), path = z.tab.file)
     write_tsv(data.frame(), path = out.null.file)
     log.msg('Empty data\n')
     q()
@@ -93,11 +95,10 @@ if(is.null(igap.data)) {
 
 if(!file.exists(out.tab.file)) {
 
-    vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
-                   do.hyper = TRUE, tol = 1e-8,
+    vb.opt <- list(pi.ub = -1/2, pi.lb = -2, tau = -5, do.hyper = TRUE, tol = 1e-8,                   
                    gammax = gammax.input, nsingle = 100,
-                   vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
-                   rate = 1e-2, nsample = 10, print.interv = 500,
+                   vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+                   rate = 1e-2, decay = -1e-2, nsample = 11, print.interv = 500,
                    weight = FALSE, do.rescale = TRUE,
                    multivar.mediator = TRUE)
 
@@ -120,16 +121,21 @@ if(!file.exists(out.tab.file)) {
                gwas.p.ld = min(igap.matched$gwas.p),
                num.genes.ld = nrow(summary.tab))
 
+    if(sum(out.tab$lodds > 0) > 0) {
+        zscore.tab <- separate.zscore(z.out, plink.gwas$BIM %r% igap.data$x.pos)
+        write_tsv(zscore.tab, path = z.tab.file)
+    } else {
+        write_tsv(data.frame(), path = z.tab.file)
+    }
     write_tsv(out.tab, path = out.tab.file)
 }
 
 if(!file.exists(out.null.file)) {
 
-    vb.opt <- list(pi.ub = -1/2, pi.lb = -3, tau = -5,
-                   do.hyper = TRUE, tol = 1e-8,
+    vb.opt <- list(pi.ub = -1/2, pi.lb = -2, tau = -5, do.hyper = TRUE, tol = 1e-8,                   
                    gammax = gammax.input, nsingle = 100,
-                   vbiter = 5000, do.stdize = TRUE, eigen.tol = eig.tol,
-                   rate = 1e-2, nsample = 10, print.interv = 500,
+                   vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+                   rate = 1e-2, decay = -1e-2, nsample = 11, print.interv = 500,
                    weight = FALSE, do.rescale = TRUE,
                    multivar.mediator = FALSE)
     

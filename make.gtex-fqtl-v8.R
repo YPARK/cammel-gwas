@@ -43,7 +43,7 @@ library(methods)
 gtex.hg38 <- read_tsv(gtex.stat.file) %>%
     filter(tss > (ld.lb.input - cis.dist), tss < (ld.ub.input + cis.dist))
 
-if(nrow(gtex.stat) < 1) {
+if(nrow(gtex.hg38) < 1) {
     log.msg('No valid gene\n')
     write_tsv(data.frame(), path = out.file)
     q()

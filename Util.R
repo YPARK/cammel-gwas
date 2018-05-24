@@ -205,6 +205,80 @@ subset.plink <- function(plink.hdr, chr, plink.lb, plink.ub, temp.dir) {
 }
 
 ################################################################
+lift.over.hg38.hg19 <- function(stat.tab, temp.hdr) {
+
+    require(dplyr)
+    require(readr)
+
+    dir.create(dirname(temp.hdr), recursive = TRUE)
+    temp.in.file <- temp.hdr %&&% '.bed.gz'
+    temp.out.file <- temp.hdr %&&% '.lift'
+    temp.null.file <- temp.hdr %&&% '.null'
+
+    stat.tab %>%
+        dplyr::mutate(snp.loc = as.integer(snp.loc)) %>%
+            dplyr::mutate(snp.1 = snp.loc -1) %>%
+                dplyr::mutate(prev = snp.loc) %>%
+                    dplyr::select(chr, snp.1, snp.loc, rs, prev) %>%
+                        write_tsv(path = temp.in.file, col_names = FALSE)
+
+    sys.lift.cmd <- './bin/liftOver' %&&% ' ' %&&% temp.in.file %&&% ' ' %&&% 'hg38ToHg19.over.chain.gz' %&&% ' ' %&&% temp.out.file %&&% ' ' %&&% temp.null.file
+
+    sys.gzip.cmd <- 'gzip -f ' %&&% temp.out.file
+    system(sys.lift.cmd %&&% '; ' %&&% sys.gzip.cmd)
+    log.msg('System: ' %&&% sys.lift.cmd)
+    log.msg('System: ' %&&% sys.gzip.cmd)
+
+    lift.col <- c('chr', 'remove', 'snp.new', 'rs', 'snp.loc')
+    lift.tab <- read_tsv(temp.out.file %&&% '.gz', col_names = lift.col) %>%
+        dplyr::select(-remove)
+
+    .files <- c(temp.in.file, temp.out.file, temp.out.file %&&% '.gz', temp.null.file)
+    unlink(.files)
+
+    ret <- stat.tab %>%
+        dplyr::mutate(snp.loc = as.integer(snp.loc)) %>%
+            right_join(lift.tab, by = c('chr', 'rs', 'snp.loc')) %>%
+                na.omit() %>%
+                    dplyr::select(-snp.loc) %>%
+                        dplyr::rename(snp.loc = snp.new)
+
+    return(ret)
+}
+
+## compare two plink bim files
+read.bim <- function(plink.hdr, plink.lb, plink.ub) {
+    bim <- read_tsv(plink.hdr %&&% '.bim',
+                    col_names = c('chr', 'rs', 'missing', 'snp.loc', 'a1', 'a2'),
+                    col_types = 'iciicc')
+
+    bim <- bim %>% filter(snp.loc >= plink.lb, snp.loc <= plink.ub)
+    return(bim)
+}
+
+match.bim <- function(gwas.bim, qtl.bim) {
+
+    gwas.bim <- gwas.bim %>%
+        mutate(gwas.x.pos = 1:n()) %>%
+            rename(gwas.plink.a1 = a1,
+                   gwas.plink.a2 = a2) %>%
+                       select(-missing)
+
+    qtl.bim <- qtl.bim %>%
+        mutate(qtl.x.pos = 1:n()) %>%
+            rename(qtl.plink.a1 = a1,
+                   qtl.plink.a2 = a2,
+                   qtl.rs = rs) %>%
+                       select(-missing)
+
+    bim.matched <- gwas.bim %>%
+        left_join(qtl.bim) %>%
+            na.omit()
+
+    return(bim.matched)
+}
+
+################################################################
 row.order <- function(mat) {
     require(cba)
     require(proxy)
