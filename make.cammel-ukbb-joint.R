@@ -6,14 +6,20 @@ options(stringsAsFactors = FALSE)
 source('Util.R')
 source('Util-cammel.R')
 
-if(length(argv) != 4) {
+if(length(argv) < 5) {
     q()
 }
 
 ld.idx <- as.integer(argv[1])           # e.g., ld.idx = 1
 gammax.input <- as.numeric(argv[2])     # e.g., gammax.input = 1e4
 eig.tol <- as.numeric(argv[3])          # e.g., eig.tol = 1e-2
-out.hdr <- argv[4]                      # e.g., out.hdr = 'temp.cammel'
+eqtl.data <- argv[4]                    # e.g., eqtl.data = "rosmap-mult:mayo-mult:geuvadis-mult"
+out.hdr <- argv[5]                      # e.g., out.hdr = 'temp.cammel'
+
+is.null.data <- FALSE
+if(length(argv) > 5) {
+    is.null.data <- as.logical(argv[6])
+}
 
 dir.create(dirname(out.hdr), recursive = TRUE, showWarnings = FALSE)
 
@@ -25,9 +31,19 @@ library(methods)
 library(tidyr)
 
 ## Combine all eQTL effects
-eqtl.data <- c('rosmap-mult', 'mayo-mult', 'geuvadis-mult', 'gtex-fqtl-v6')
+eqtl.data <- strsplit(eqtl.data, split = ':') %>% (function(x) x[[1]])
 eqtl.data.files <- 'cis-eqtl/' %&&% eqtl.data %&&% '/' %&&% ld.idx %&&% '_qtl.txt.gz'
 eqtl.tab <- read.multivar.eqtl(eqtl.data, eqtl.data.files)
+
+if(nrow(eqtl.tab) == 0) {
+    write_tsv(data.frame(), path = out.hdr %&&% '.ukbb_ad_mat.gz')
+    write_tsv(data.frame(), path = out.hdr %&&% '.ukbb_ad_pat.gz')
+    write_tsv(data.frame(), path = out.hdr %&&% '.ukbb_neuroticism.gz')
+    write_tsv(data.frame(), path = out.hdr %&&% '.ukbb_moodswings.gz')
+    log.msg('Empty QTL file\n')
+    q()
+}
+
 log.msg('Read %d rows eQTL tab\n', nrow(eqtl.tab))
 
 ################################################################
@@ -51,13 +67,6 @@ dir.create(temp.dir, recursive = TRUE, showWarnings = FALSE)
 plink.gwas <- subset.plink('1KG_EUR/chr' %&&% chr.input,
                            chr.input, ld.lb.input, ld.ub.input, temp.dir)
 
-if(nrow(eqtl.tab) == 0) {
-    write_tsv(data.frame(), path = out.pat.file)
-    write_tsv(data.frame(), path = out.mat.file)
-    log.msg('Empty QTL file\n')
-    q()
-}
-
 .run <- function(.gwas.file, .out.file, .gwas) {
     if(!file.exists(.out.file)) {
 
@@ -67,7 +76,7 @@ if(nrow(eqtl.tab) == 0) {
             match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab)
 
         .data <- .matched %>%
-            make.zqtl.data(n.permuted = 20)
+            make.zqtl.data(n.permuted = 50, is.null.data = is.null.data)
         gc()
 
         if(is.null(.data)) {
@@ -76,32 +85,32 @@ if(nrow(eqtl.tab) == 0) {
             return(NULL)
         }
 
-        vb.opt <- list(pi.ub = -1/2, pi.lb = -2, tau = -5, do.hyper = TRUE, tol = 1e-8,                       
+        vb.opt <- list(pi = -1, tau = -5, do.hyper = FALSE, vbiter = 5000, tol = 1e-8,
                        gammax = gammax.input, nsingle = 100,
-                       vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+                       do.stdize = TRUE, eigen.tol = eig.tol,
                        rate = 1e-2, decay = -1e-2, nsample = 11, print.interv = 500,
-                       weight = FALSE, do.rescale = TRUE,
+                       weight = FALSE, do.rescale = TRUE, jitter = 0.1,
                        multivar.mediator = TRUE)
-        
+
         z.out <- .data %>%
             run.cammel(xx.gwas = plink.gwas$BED, xx.med = plink.gwas$BED, opt = vb.opt)
-        
+
         var.tab <- get.var.tab(z.out$var.decomp, .data$mediators) %>%
             select(med.id, var.mediated, var.direct.tot)
-        
+
         summary.tab <- .matched %>% group_by(med.id) %>% slice(which.max(abs(qtl.z))) %>%
             select(med.id, gwas.p, gwas.z)
-        
+
         out.tab <- melt.effect(z.out$param.mediated, .data$mediators, .gwas) %>%
             rename(med.id = Var1, gwas = Var2) %>%
                 left_join(var.tab) %>%
                     left_join(summary.tab)
-        
+
         out.tab <- out.tab %>%
             mutate(ld.idx = ld.idx,
                    gwas.p.ld = min(.matched$gwas.p),
                    num.genes.ld = nrow(summary.tab))
-        
+
         if(sum(out.tab$lodds > 0) > 0) {
             z.tab.file <- gsub(.out.file, pattern = '.gz', replacement = '.zscore.gz')
             zscore.tab <- separate.zscore(z.out, plink.gwas$BIM %r% .data$x.pos)
@@ -112,19 +121,19 @@ if(nrow(eqtl.tab) == 0) {
 }
 
 gwas.file <- gwas.dir %&&% 'ukbb_ad_mat_' %&&% ld.idx %&&% '.txt.gz'
-out.file <- out.hdr %&&% '.ad_mat.gz'
+out.file <- out.hdr %&&% '.ukbb_ad_mat.gz'
 .run(gwas.file, out.file, 'ukbb.ad_mat')
 
 gwas.file <- gwas.dir %&&% 'ukbb_ad_pat_' %&&% ld.idx %&&% '.txt.gz'
-out.file <- out.hdr %&&% '.ad_pat.gz'
+out.file <- out.hdr %&&% '.ukbb_ad_pat.gz'
 .run(gwas.file, out.file, 'ukbb.ad_pat')
 
 gwas.file <- gwas.dir %&&% 'ukbb_neuroticism_' %&&% ld.idx %&&% '.txt.gz'
-out.file <- out.hdr %&&% '.neuroticism.gz'
+out.file <- out.hdr %&&% '.ukbb_neuroticism.gz'
 .run(gwas.file, out.file, 'ukbb.neuroticism')
 
 gwas.file <- gwas.dir %&&% 'ukbb_moodswings_' %&&% ld.idx %&&% '.txt.gz'
-out.file <- out.hdr %&&% '.moodswings.gz'
+out.file <- out.hdr %&&% '.ukbb_moodswings.gz'
 .run(gwas.file, out.file, 'ukbb.moodswings')
 
 

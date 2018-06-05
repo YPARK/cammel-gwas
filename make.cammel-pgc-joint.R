@@ -6,14 +6,20 @@ options(stringsAsFactors = FALSE)
 source('Util.R')
 source('Util-cammel.R')
 
-if(length(argv) != 4) {
+if(length(argv) < 5) {
     q()
 }
 
 ld.idx <- as.integer(argv[1])           # e.g., ld.idx = 1
 gammax.input <- as.numeric(argv[2])     # e.g., gammax.input = 1e4
 eig.tol <- as.numeric(argv[3])          # e.g., eig.tol = 1e-2
-out.hdr <- argv[4]                      # e.g., out.hdr = 'temp.cammel'
+eqtl.data <- argv[4]                    # e.g., eqtl.data = "rosmap-mult:mayo-mult:geuvadis-mult"
+out.hdr <- argv[5]                      # e.g., out.hdr = 'temp.cammel'
+
+is.null.data <- FALSE
+if(length(argv) > 5) {
+    is.null.data <- as.logical(argv[6])
+}
 
 ################################################################
 ## Run CaMMEL on PGC GWAS statistics
@@ -43,9 +49,18 @@ library(methods)
 library(tidyr)
 
 ## Combine all eQTL effects
-eqtl.data <- c('rosmap-mult', 'mayo-mult', 'geuvadis-mult', 'gtex-fqtl-v6')
+eqtl.data <- strsplit(eqtl.data, split = ':') %>% (function(x) x[[1]])
 eqtl.data.files <- 'cis-eqtl/' %&&% eqtl.data %&&% '/' %&&% ld.idx %&&% '_qtl.txt.gz'
 eqtl.tab <- read.multivar.eqtl(eqtl.data, eqtl.data.files)
+
+if(nrow(eqtl.tab) == 0) {
+    for(ff in out.files) {
+        write_tsv(data.frame(), path = ff)
+    }
+    log.msg('Empty QTL file\n')
+    q()
+}
+
 log.msg('Read %d rows eQTL tab\n', nrow(eqtl.tab))
 
 ################################################################
@@ -74,11 +89,13 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
 
         .gwas.tab <- read.gwas(.gwas.file)
 
+        if(nrow(.gwas.tab) < 1) return(NULL)
+
         .matched <- .gwas.tab %>%
             match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab)
 
         .data <- .matched %>%
-            make.zqtl.data(n.permuted = 20)
+            make.zqtl.data(n.permuted = 50, is.null.data = is.null.data)
         gc()
 
         if(is.null(.data)) {
@@ -87,11 +104,11 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
             return(NULL)
         }
 
-        vb.opt <- list(pi.ub = -1/2, pi.lb = -2, tau = -5, do.hyper = TRUE, tol = 1e-8,
+        vb.opt <- list(pi = -1, tau = -5, do.hyper = FALSE, vbiter = 5000, tol = 1e-8,
                        gammax = gammax.input, nsingle = 100,
-                       vbiter = 3500, do.stdize = TRUE, eigen.tol = eig.tol,
+                       do.stdize = TRUE, eigen.tol = eig.tol,
                        rate = 1e-2, decay = -1e-2, nsample = 11, print.interv = 500,
-                       weight = FALSE, do.rescale = TRUE,
+                       weight = FALSE, do.rescale = TRUE, jitter = 0.1,
                        multivar.mediator = TRUE)
 
         z.out <- .data %>%

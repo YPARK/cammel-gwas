@@ -4,6 +4,7 @@ argv <- commandArgs(trailingOnly = TRUE)
 
 options(stringsAsFactors = FALSE)
 source('Util.R')
+source('Util-cammel.R')
 
 if(length(argv) < 4) {
     q()
@@ -207,9 +208,10 @@ covar.mat <- covar.matched %>%
 
 ################################################################
 K <- min(10, min(ncol(Y0.ctrl), ncol(covar.mat)))
+lodds.cutoff <- log(0.1) - log(0.9)
 
-opt.reg <- list(vbiter = 5000, gammax = 1e4, tol = 1e-8, rate = 1e-2,
-                pi = -1, tau = -4, do.hyper = FALSE, jitter = 0.01,
+opt.reg <- list(vbiter = 3500, gammax = 1e4, tol = 1e-8, rate = 1e-2,
+                pi.ub = 0, pi.lb = lodds.cutoff, tau = -4, do.hyper = TRUE, jitter = 1e-2,
                 model = 'nb', out.residual = TRUE, k = K,
                 svd.init = TRUE, print.interv = 100)
 
@@ -235,8 +237,8 @@ covar.mat.combined <- cbind(covar.mat, y0.covar)
 
 xx.std <- plink.eqtl$BED %r% pos.df$x.pos %>% scale()
 
-opt.reg <- list(vbiter = 5000, gammax = 1e4, tol = 1e-8, rate = 1e-2,
-                pi = -1, tau = -4, do.hyper = FALSE, jitter = 0.01,
+opt.reg <- list(vbiter = 3500, gammax = 1e4, tol = 1e-8, rate = 1e-2,
+                pi.ub = 0, pi.lb = lodds.cutoff, tau = -4, do.hyper = TRUE, jitter = 1e-2,
                 model = 'nb', out.residual = FALSE, print.interv = 100)
 
 y1.out <- fqtl.regress(y = Y1,
@@ -245,11 +247,11 @@ y1.out <- fqtl.regress(y = Y1,
                        opt = opt.reg)
 
 out.tab <- effect2tab(y1.out$mean) %>%
-    rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds) %>%
-        rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
-            select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
-
-lodds.cutoff <- 0 # at least one pip > .5
+    left_join(x.bim) %>%
+        left_join(genes.Y1) %>%
+            rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds) %>%
+                rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
+                    select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
 
 valid.med <- out.tab %>%
     group_by(med.id) %>%

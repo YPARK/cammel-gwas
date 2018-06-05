@@ -10,12 +10,13 @@ library(tidyr)
 library(readr)
 library(methods)
 
-if(length(argv) < 2) {
+if(length(argv) < 3) {
     q()
 }
 
-med.dir <- argv[1] # e.g., med.dir = 'mediation.joint/igap/gammax_4/eigen_2'
-out.file <- argv[2]
+med.dir <- argv[1] # e.g., med.dir = 'mediation.joint/ukbb/gammax_4/eigen_2'
+med.ext <- argv[2] # e.g., med.ext = 'ad_mat'
+out.file <- argv[3]
 
 if(file.exists(out.file)) {
     log.msg('output file already exists')
@@ -43,11 +44,7 @@ coding.bm <- getBM(attributes = c('ensembl_gene_id', 'hgnc_symbol'),
 
 ## Read the files
 
-med.files <- .list.files(path = med.dir, pattern = 'mediation.gz')
-
-null.files <- .list.files(path = med.dir, pattern = 'null.gz')
-
-null.stat.tab <- bind_rows(lapply(null.files, read_tsv))
+med.files <- .list.files(path = med.dir, pattern = med.ext %&&% '.gz')
 
 ld.file <- 'ldblocks/nygcresearch-ldetect-data-ac125e47bf7f/EUR/fourier_ls-all.bed'
 
@@ -57,20 +54,7 @@ ld.tab <- read_tsv(ld.file) %>%
             dplyr::filter(chr %in% as.character(1:22)) %>%
                 mutate(chr = as.integer(chr))
 
-.read.med <- function(.file) {
-    ld.idx <- basename(.file) %>%
-        gsub(pattern = '.mediation.gz', replacement = '') %>%
-            as.integer()
-    ret <- read_tsv(.file)
-    if(!'ld.lb' %in% colnames(ret)) {
-        ld.info <- ld.tab[ld.idx, ] %>% unlist()
-        ret <- ret %>%
-            mutate(chr = ld.info[1], ld.lb = ld.info[2], ld.ub = ld.info[3])
-    }
-    return(ret)
-}
-
-med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
+med.stat.tab <- bind_rows(lapply(med.files, read_tsv)) %>%
     separate(med.id, into = c('med.id', 'factor', 'data'), sep = '@') %>%
         separate(med.id, into = c('med.id', 'remove'), sep = '[.]') %>%
             dplyr::select(-remove) %>%
@@ -80,31 +64,11 @@ med.stat.tab <- bind_rows(lapply(med.files, .read.med)) %>%
                             dplyr::filter(!is.na(hgnc)) %>%
                                 as.data.frame()
 
-## Estimate empirical null distributions -- cohort by cohort
+perm.stat.tab <- bind_rows(lapply(med.files, read_tsv)) %>%
+    filter(substr(med.id, start = 2, stop = 5) == 'perm')
 
-calc.pval <- function(.gwas) {
-
-    .null <- null.stat.tab %>% dplyr::filter(gwas == .gwas) %>%
-        dplyr::select(lodds) %>%
-            .unlist()
-
-    null.cdf <- ecdf(1/(1+exp(-.null)))
-
-    .pval.tab <- med.stat.tab %>% dplyr::filter(gwas == .gwas) %>%
-        dplyr::select(chr, ld.lb, ld.ub, med.id, factor, data, gwas, lodds) %>%
-            mutate(pip = 1/(1+exp(-lodds)))
-
-    p.lodds.null <- 1 - null.cdf(.pval.tab$pip)
-
-    ret <- .pval.tab %>%
-        dplyr::select(chr, ld.lb, ld.ub, med.id, factor, data, gwas) %>%
-            mutate(pval.lodds = p.lodds.null) %>%
-                mutate(pval.lodds = signif(pval.lodds, 2))
-
-    return(ret)
-}
-
-take.lfsr <- function(tab, var.min = 1e-4) {
+## local false sign rate
+take.lfsr <- function(tab, var.min = 1e-8) {
     ret <- mutate(.data = tab, pip = 1/(1+exp(-lodds))) %>%
         mutate(pos.prob = pnorm(0, mean = theta, sd = sqrt(theta.var + var.min))) %>%
             mutate(neg.prob = 1 - pos.prob) %>%
@@ -114,11 +78,20 @@ take.lfsr <- function(tab, var.min = 1e-4) {
     return(ret)
 }
 
-gwas.names <- unique(med.stat.tab$gwas)
+## Estimate empirical null distributions -- cohort by cohort
+calc.pval <- function(tab, lodds.null) {
+    null.mu <- mean(lodds.null)
+    null.sd <- sd(lodds.null) + 1e-4
+    pv.n <- pnorm((tab$lodds - null.mu) / null.sd, lower.tail = FALSE)
 
-pval.tab <- bind_rows(lapply(gwas.names, calc.pval))
+    cdf.0 <- ecdf(lodds.null)
+    pv <- 1 - cdf.0(tab$lodds)
+    tab %>% mutate(pval.emp = signif(pv, 2),
+                   pval.nor = signif(pv.n, 2))
+}
 
-out.tab <- med.stat.tab %>% take.lfsr() %>%
-    left_join(pval.tab)
+out.tab <- med.stat.tab %>% filter(num.genes.ld >= 20) %>%
+    take.lfsr() %>%
+        calc.pval(lodds.null = perm.stat.tab$lodds)
 
 write_tsv(out.tab, path = out.file)

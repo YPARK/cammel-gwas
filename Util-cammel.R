@@ -121,7 +121,7 @@ match.plink <- function(plink.gwas, plink.qtl) {
 
 ################################################################
 ## generate matrices from matched statistics
-make.zqtl.data <- function(matched.stat, n.permuted = 0) {
+make.zqtl.data <- function(matched.stat, n.permuted = 0, is.null.data = FALSE) {
 
     require(dplyr)
     require(tidyr)
@@ -176,11 +176,28 @@ make.zqtl.data <- function(matched.stat, n.permuted = 0) {
         qtl.se.add <- qtl.se[, idx, drop = FALSE]
         qtl.beta.add <- qtl.beta[, idx, drop = FALSE]
         for(j in 1:n.add) {
-            qtl.beta.add[, j] <- sample(qtl.beta.add[, j])
+            .perm <- sample(n.snp)
+            qtl.beta.add[, j] <- qtl.beta.add[.perm, j]
+            qtl.se.add[, j] <- qtl.se.add[.perm, j]
         }
         med.id <- c(med.id, paste('.perm', 1:n.add, sep='.'))
         qtl.beta <- cbind(qtl.beta, qtl.beta.add)
         qtl.se <- cbind(qtl.se, qtl.se.add)
+    }
+
+    if(is.null.data) {
+        n.med <- ncol(qtl.beta)
+        qtl.beta.perm <- qtl.beta
+        qtl.se.perm <- qtl.se
+        n.snp <- nrow(qtl.beta)
+
+        for(j in 1:n.med) {
+            .perm <- sample(n.snp)
+            qtl.beta.perm[, j] <- qtl.beta[.perm, j]
+            qtl.se.perm[, j] <- qtl.se[.perm, j]
+        }
+        qtl.beta <- qtl.beta.perm
+        qtl.se <- qtl.se.perm
     }
 
     .xx <- match(x.pos, gwas.beta$x.pos)
@@ -360,9 +377,8 @@ effect2tab <- function(param) {
                 mutate(theta.se = sqrt(theta.var)) %>%
                     select(-theta.var) %>%
                         mutate(x.col = as.integer(x.col)) %>%
-                            mutate(y.col = as.integer(y.col)) %>%
-                                left_join(x.bim) %>%
-                                    left_join(genes.Y1)
+                            mutate(y.col = as.integer(y.col))
+
     ret <- ret %>%
         mutate(theta = signif(theta, 4),
                theta.se = signif(theta.se, 4),

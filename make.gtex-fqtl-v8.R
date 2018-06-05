@@ -40,20 +40,34 @@ library(methods)
 ## Read multivariate effect sizes
 .split.bar <- function(s) strsplit(s, split = '[|]')
 
-gtex.hg38 <- read_tsv(gtex.stat.file) %>%
-    filter(tss > (ld.lb.input - cis.dist), tss < (ld.ub.input + cis.dist))
+## hg19 coding genes
+coding.genes.hg19 <- read_tsv('coding.genes.txt.gz') %>%
+    rename(hgnc = gene_name, lb.hg19 = start, ub.hg19 = end) %>%
+        na.omit()
 
-if(nrow(gtex.hg38) < 1) {
+## hg38 gtex stat
+gtex.hg38 <- read_tsv(gtex.stat.file) %>%
+    separate(ensg, c('ensg', 'remove')) %>%
+        select(-remove) %>%
+            mutate(chr = gsub(chr, pattern = 'chr', replacement = '')) %>%
+                mutate(chr = as.integer(chr)) %>%
+                    left_join(coding.genes.hg19) %>%
+                        na.omit()
+
+snp.cols <- c('chr', 'snp.loc', 'a1', 'a2')
+
+gtex.stat.hg38 <- gtex.hg38 %>%
+    filter((lb.hg19 > (ld.lb.input - cis.dist) & lb.hg19 < (ld.ub.input + cis.dist)) | (ub.hg19 > (ld.lb.input - cis.dist) & ub.hg19 < (ld.ub.input + cis.dist)))
+
+if(nrow(gtex.stat.hg38) < 1) {
     log.msg('No valid gene\n')
     write_tsv(data.frame(), path = out.file)
     q()
 }
 
-snp.cols <- c('chr', 'snp.loc', 'a1', 'a2')
-
-gtex.stat.hg38 <- gtex.hg38 %>%
+gtex.stat.hg38 <- gtex.stat.hg38 %>%
     mutate(med.id = ensg %&&% '@' %&&% factor) %>%
-        select(med.id, snp, snp.theta, snp.sd, snp.lodds)  %>%
+        select(med.id, snp, snp.theta, snp.sd, snp.lodds) %>%
             unnest(snp = .split.bar(snp),
                    snp.theta = .split.bar(snp.theta),
                    snp.sd = .split.bar(snp.sd),
@@ -105,6 +119,25 @@ qtl.out <- qtl.out %>%
 qtl.out <- qtl.out %>%
     rename(qtl.a1 = gwas.plink.a1, qtl.a2 = gwas.plink.a2) %>%
         select(chr, rs, snp.loc, med.id, qtl.a1, qtl.a2, qtl.beta, qtl.se, qtl.lodds)
+
+lodds.cutoff <- 0 # at least one pip > .5
+
+valid.med <- qtl.out %>%
+    group_by(med.id) %>%
+        slice(which.max(qtl.lodds)) %>%
+            filter(qtl.lodds > lodds.cutoff) %>%
+                select(med.id) %>%
+                    .unlist()
+
+qtl.out <- qtl.out %>%
+    filter(med.id %in% valid.med)
+
+if(nrow(qtl.out) < 1){
+    write_tsv(data.frame(), path = out.file)
+    log.msg('Just wrote empty QTL files!\n')
+    system('rm -r ' %&&% temp.dir)
+    q()
+}
 
 write_tsv(x = qtl.out, path = out.file)
 system('rm -r ' %&&% temp.dir)

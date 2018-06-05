@@ -13,7 +13,7 @@ library(methods)
 ld.info.file <- 'ldblocks/EUR/fourier_ls-all.bed'
 ld.info.tab <- read_tsv(ld.info.file)
 
-out.dir <- '/broad/hptmp/ypp/cammel/gwas_stat/'
+out.dir <- 'gwas_stat/'
 system('mkdir -p ' %&&% out.dir)
 
 ## Divide GWAS statistics into independent chunks

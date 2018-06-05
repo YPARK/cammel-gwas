@@ -13,17 +13,22 @@ if(length(argv) < 4) {
 chr.input <- as.integer(argv[1])   # chr.input = 19
 ld.lb.input <- as.integer(argv[2]) # ld.lb.input = 8347513
 ld.ub.input <- as.integer(argv[3]) # ld.ub.input = 9238393
-out.file <- argv[4]                # out.file = 'temp.txt.gz'
+out.hdr <- argv[4]                 # out.hdr = 'temp'
 
-dir.create(dirname(out.file), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(out.hdr), recursive = TRUE, showWarnings = FALSE)
 
-if(file.exists(out.file)) {
-    log.msg('All output files already exist: %s\n', out.file)
+joint.out.file <- out.hdr %&&% '.combined.gz'
+snp.out.file <- out.hdr %&&% '.snp-factor.gz'
+max.snp.out.file <- out.hdr %&&% '.snp-max.gz'
+gene.out.file <- out.hdr %&&% '.gene-factor.gz'
+
+if(file.exists(joint.out.file)) {
+    log.msg('All output files already exist: %s\n', out.hdr)
     q()
 }
 
-temp.dir <- system('mkdir -p /broad/hptmp/ypp/cammel/' %&&% out.file %&&%
-                   '; mktemp -d /broad/hptmp/ypp/cammel/' %&&% out.file %&&%
+temp.dir <- system('mkdir -p /broad/hptmp/ypp/cammel/' %&&% out.hdr %&&%
+                   '; mktemp -d /broad/hptmp/ypp/cammel/' %&&% out.hdr %&&%
                    '/temp.XXXXXXXX',
                    intern = TRUE,
                    ignore.stderr = TRUE)
@@ -84,7 +89,10 @@ ld.genes <- ld.genes %>%
     filter(ensg %in% coding.genes$ensg)
 
 if(nrow(ld.genes) < 1) {
-    write_tsv(x = data.frame(), path = out.file)
+    write_tsv(data.frame(), path = gene.out.file)
+    write_tsv(data.frame(), path = snp.out.file)
+    write_tsv(data.frame(), path = joint.out.file)
+    write_tsv(data.frame(), path = max.snp.out.file)
     log.msg('No gene\n')
     system('rm -r ' %&&% temp.dir)
     q()
@@ -102,7 +110,10 @@ genes.Y1 <- genes.info %r% gene.idx %>%
             rename(med.id = ensg)
 
 if(nrow(genes.Y1) < 1){
-    write_tsv(x = data.frame(), path = out.file)
+    write_tsv(data.frame(), path = gene.out.file)
+    write_tsv(data.frame(), path = snp.out.file)
+    write_tsv(data.frame(), path = joint.out.file)
+    write_tsv(data.frame(), path = max.snp.out.file)
     system('rm -r ' %&&% temp.dir)
     q()
 }
@@ -139,7 +150,10 @@ plink.hdr <- geno.dir %&&% '/chr' %&&% chr.input
 plink.eqtl <- subset.plink(plink.hdr, chr.input, ld.lb.input, ld.ub.input, temp.dir)
 
 if(is.null(plink.eqtl)){
-    write_tsv(data.frame(), path = out.file)
+    write_tsv(data.frame(), path = gene.out.file)
+    write_tsv(data.frame(), path = snp.out.file)
+    write_tsv(data.frame(), path = joint.out.file)
+    write_tsv(data.frame(), path = max.snp.out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)
     q()
@@ -152,7 +166,10 @@ plink.gwas <- subset.plink('1KG_EUR/chr' %&&% chr.input,
 plink.matched <- match.plink(plink.gwas, plink.eqtl)
 
 if(is.null(plink.matched)) {
-    write_tsv(data.frame(), path = out.file)
+    write_tsv(data.frame(), path = gene.out.file)
+    write_tsv(data.frame(), path = snp.out.file)
+    write_tsv(data.frame(), path = joint.out.file)
+    write_tsv(data.frame(), path = max.snp.out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)
     q()
@@ -162,7 +179,10 @@ plink.gwas <-  plink.matched$gwas
 plink.eqtl <-  plink.matched$qtl
 
 if(is.null(plink.eqtl)){
-    write_tsv(data.frame(), path = out.file)
+    write_tsv(data.frame(), path = gene.out.file)
+    write_tsv(data.frame(), path = snp.out.file)
+    write_tsv(data.frame(), path = joint.out.file)
+    write_tsv(data.frame(), path = max.snp.out.file)
     log.msg('Just wrote empty QTL files!\n')
     system('rm -r ' %&&% temp.dir)
     q()
@@ -233,59 +253,95 @@ opt.reg <- list(vbiter = 3500, gammax = 1e4, tol = 1e-8, rate = 1e-2,
 ################################################################
 ## Control genes are available
 if(ncol(Y0.ctrl) > 0) {
-
     ## 0. remove covariance effects (and convert NB to Gaussian)
     y0.out <- fqtl.regress(y = Y0.ctrl,
                            x.mean = covar.mat,
                            factored = TRUE,
                            options = opt.reg)
-
     y0.covar <- y0.out$resid$theta %>% scale()
-
 } else {
     y0.covar <- matrix(nrow = nrow(covar.mat), ncol = 0)
 }
 
 ################################################################
-## Estimate multivariate models
+## Estimate local factored QTL model
 covar.mat.combined <- cbind(covar.mat, y0.covar)
 
 xx.std <- plink.eqtl$BED %r% pos.df$x.pos %>% scale()
 
+K <- max(ncol(Y1) - 1, 1)
+
 opt.reg <- list(vbiter = 3500, gammax = 1e4, tol = 1e-8, rate = 1e-2,
                 pi.ub = 0, pi.lb = lodds.cutoff, tau = -4, do.hyper = TRUE, jitter = 1e-2,
-                model = 'nb', out.residual = FALSE, print.interv = 100)
+                model = 'nb', out.residual = FALSE, print.interv = 100, k = K)
 
 y1.out <- fqtl.regress(y = Y1 %r% pos.df$y.pos,
                        x.mean = xx.std,
                        c.mean = covar.mat.combined %r% pos.df$y.pos,
+                       factored = TRUE,
                        opt = opt.reg)
 
-out.tab <- effect2tab(y1.out$mean) %>%
-    left_join(x.bim) %>%
-        left_join(genes.Y1) %>%
-            rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds) %>%
-                rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2) %>%
-                    select(chr, rs, snp.loc, med.id, dplyr::starts_with('qtl'))
+log.msg('Successfully finished model estimation')
 
-valid.med <- out.tab %>%
+################################################################
+
+snp.lodds.cutoff <- 0
+gene.lodds.cutoff <- 0
+
+## Need this format: chr, rs, snp.loc, med.id, qtl.a1, qtl.a2, qtl.beta, qtl.se
+##
+## med.id = {chr:lb:ub}@{factor}
+##
+
+ld.id <- paste(c(chr.input, ld.lb.input, ld.ub.input), collapse = ':')
+
+bim.tab <- plink.eqtl$BIM %>% mutate(snp = 1:n()) %>%
+    rename(qtl.a1 = plink.a1, qtl.a2 = plink.a2)
+
+snp.effect <- y1.out$mean.left %>% effect2tab() %>%
+    rename(snp = x.col, factor = y.col) %>%        
+        left_join(bim.tab) %>%
+            mutate(med.id = ld.id %&&% '@' %&&% factor) %>%
+                rename(qtl.beta = theta, qtl.se = theta.se, qtl.lodds = lodds) %>%
+                    select(chr, rs, snp.loc, med.id, starts_with('qtl'))
+
+snp.max.effect <- snp.effect %>%
     group_by(med.id) %>%
-        slice(which.max(qtl.lodds)) %>%
-            filter(qtl.lodds > lodds.cutoff) %>%
-                select(med.id) %>%
-                    .unlist()
+        slice(which.max(qtl.lodds))
 
-qtl.out <- out.tab %>%
-    filter(med.id %in% valid.med)
+gene.effect <- y1.out$mean.right %>%
+    effect2tab() %>%
+        mutate(med.id = ld.id %&&% '@' %&&% y.col) %>%
+            mutate(y.col = x.col) %>%
+                left_join(genes.Y1 %>% rename(ensg = med.id)) %>%
+                    rename(gene.beta = theta, gene.se = theta.se, gene.lodds = lodds) %>%
+                        select(med.id, ensg, hgnc, tss, tes, starts_with('gene'))
 
-if(nrow(qtl.out) < 1){
-    write_tsv(data.frame(), path = out.file)
-    log.msg('Just wrote empty QTL files!\n')
-    system('rm -r ' %&&% temp.dir)
-    q()
-}
+.collapse <- function(...) paste(..., collapse = '|')
 
-write_tsv(x = qtl.out, path = out.file)
+out <- snp.effect %>%
+    filter(qtl.lodds > snp.lodds.cutoff) %>%
+        group_by(med.id) %>%
+            summarize(snp = .collapse(rs),
+                      snp.beta = .collapse(qtl.beta),
+                      snp.se = .collapse(qtl.se),
+                      snp.lodds = .collapse(qtl.lodds))
+
+temp <- gene.effect %>%
+    filter(gene.lodds > gene.lodds.cutoff) %>%
+        group_by(med.id) %>%
+            summarize(ensg = .collapse(ensg),
+                      hgnc = .collapse(hgnc),
+                      gene.beta = .collapse(gene.beta),
+                      gene.se = .collapse(gene.se),
+                      gene.lodds = .collapse(gene.lodds))
+
+out <- out %>% left_join(temp)
+
+write_tsv(gene.effect, path = gene.out.file)
+write_tsv(snp.effect, path = snp.out.file)
+write_tsv(out, path = joint.out.file)
+write_tsv(snp.max.effect, path = max.snp.out.file)
 
 system('rm -r ' %&&% temp.dir)
 log.msg('Successfully finished!\n')

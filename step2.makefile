@@ -5,9 +5,9 @@ NBLOCKS := $(shell cat $(LD) 2> /dev/null | tail -n+2 | wc -l)
 ldlist := $(shell seq 1 $(NBLOCKS))
 TEMPDIR := /broad/hptmp/ypp/cammel-gwas/tempdata
 
-all: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl.txt.gz jobs/step2-$(data)-qtl-mult.txt.gz) jobs/step2-gtex-qtl-mult.txt.gz jobs/step2-gtex-v8-qtl-mult.txt.gz
+all: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl-mult.txt.gz) jobs/step2-gtex-qtl-mult.txt.gz jobs/step2-gtex-v8-qtl-mult.txt.gz jobs/step2-rosmap-qtl-factored.txt.gz
 
-long: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl-long.txt.gz jobs/step2-$(data)-qtl-mult-long.txt.gz)
+long: $(foreach data, rosmap geuvadis mayo, jobs/step2-$(data)-qtl-mult-long.txt.gz)
 
 jobs/%-long.txt.gz: jobs/%.txt.gz
 	zcat $< | awk 'system(" ! [ -f " $$NF " ]") == 0' | gzip > $@
@@ -54,6 +54,12 @@ jobs/step2-rosmap-qtl-mult.txt.gz: $(LD)
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
 	@mkdir -p cis-eqtl/rosmap-mult/
 	@cat $< | tail -n+2 | sed 's/chr//' | awk '{ print "./make.rosmap-cis-eqtl-mult.R" FS $$1 FS $$2 FS $$3 FS ("cis-eqtl/rosmap-mult/" NR "_qtl.txt.gz") }' | gzip >> $@
+	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=2:00:00 -b y -j y -N rosmap_cis_eqtl -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
+
+jobs/step2-rosmap-qtl-factored.txt.gz: $(LD)
+	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
+	@mkdir -p cis-eqtl/rosmap-mult/
+	@cat $< | tail -n+2 | sed 's/chr//' | awk '{ print "./make.rosmap-cis-eqtl-factored.R" FS $$1 FS $$2 FS $$3 FS ("cis-eqtl/rosmap-factored/" NR) }' | gzip >> $@
 	qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=4g -l h_rt=2:00:00 -b y -j y -N rosmap_cis_eqtl -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 ################################################################
