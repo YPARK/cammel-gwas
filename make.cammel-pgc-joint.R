@@ -25,7 +25,7 @@ if(length(argv) > 5) {
 ## Run CaMMEL on PGC GWAS statistics
 dir.create(dirname(out.hdr), recursive = TRUE, showWarnings = FALSE)
 
-gwas.data <- c('pgc_scz', 'pgc_ocd', 'pgc_adhd', 'pgc_asd', 'pgc_ptsd_civ_ea', 'pgc_mdd')
+gwas.data <- c('pgc_scz', 'pgc_ocd', 'pgc_adhd', 'pgc_asd', 'pgc_mdd', 'pgc_ptsd_civ_ea', 'pgc_ptsd_mil_ea', 'pgc_ptsd_all_ea')
 gwas.dir <- './gwas_stat/'
 gwas.files <- gwas.dir %&&% gwas.data %&&% '_' %&&% ld.idx %&&% '.txt.gz'
 

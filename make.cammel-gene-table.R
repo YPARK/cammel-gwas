@@ -90,7 +90,7 @@ calc.pval <- function(tab, lodds.null) {
                    pval.nor = signif(pv.n, 2))
 }
 
-out.tab <- med.stat.tab %>% filter(num.genes.ld >= 20) %>%
+out.tab <- med.stat.tab %>%
     take.lfsr() %>%
         calc.pval(lodds.null = perm.stat.tab$lodds)
 

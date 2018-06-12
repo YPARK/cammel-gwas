@@ -30,7 +30,7 @@ jobs/20180602-igap.long.gz: jobs/20180602-igap.txt.gz
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N igap_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/20180602-pgc.long.gz: jobs/20180602-pgc.txt.gz
-	zcat $< | awk 'system("! [ -f " $$6 ".pgc_mdd.gz ]") == 0' | gzip > $@
+	zcat $< | awk 'system("! [ -f " $$6 ".pgc_ptsd_all_ea.gz ]") == 0' | gzip > $@
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N pgc_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/20180602-ukbb.long.gz: jobs/20180602-ukbb.txt.gz

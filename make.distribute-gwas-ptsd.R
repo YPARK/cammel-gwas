@@ -9,7 +9,7 @@ library(methods)
 ld.info.file <- 'ldblocks/EUR/fourier_ls-all.bed'
 ld.info.tab <- read_tsv(ld.info.file)
 
-out.dir <- '/broad/hptmp/ypp/cammel/gwas_stat/'
+out.dir <- 'gwas_stat/'
 system('mkdir -p ' %&&% out.dir)
 
 ## Divide GWAS statistics into independent chunks
@@ -60,6 +60,10 @@ proc.gwas <- function(gwas.file, gwas.name) {
     rm(gwas.tab)
     gc()
 }
+
+gwas.file <- 'PTSD/all_wave_1.5/EA/EA_ALL_12_wave1.51.txt.gz'
+gwas.name <- 'pgc_ptsd_all_ea'
+proc.gwas(gwas.file, gwas.name)
 
 gwas.file <- 'PTSD/military_wave_1.5/ancestry_specific_military/EA/EA_military_7_wave1.51.txt.gz'
 gwas.name <- 'pgc_ptsd_mil_ea'

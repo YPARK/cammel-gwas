@@ -30,7 +30,7 @@ jobs/20180605-igap.long.gz: jobs/20180605-igap.txt.gz
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N igap_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/20180605-pgc.long.gz: jobs/20180605-pgc.txt.gz
-	zcat $< | awk 'system("! [ -f " $$6 ".pgc_mdd.gz ]") == 0' | gzip > $@
+	zcat $< | awk 'system("! [ -f " $$6 ".pgc_ptsd_all_ea.gz ]") == 0' | gzip > $@
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N pgc_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 jobs/20180605-ukbb.long.gz: jobs/20180605-ukbb.txt.gz
@@ -38,11 +38,11 @@ jobs/20180605-ukbb.long.gz: jobs/20180605-ukbb.txt.gz
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N ukbb_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 ################################################################
-table: $(foreach _trait, ukbb_ad_mat ukbb_ad_pat ukbb_moodswings ukbb_neuroticism pgc_scz pgc_mdd pgc_asd pgc_adhd pgc_ocd pgc_ptsd_civ_ea igap_ad, result/20180602/obs/gene-$(_trait).txt.gz)
+table: $(foreach _trait, ukbb_ad_mat ukbb_ad_pat ukbb_moodswings ukbb_neuroticism pgc_scz pgc_mdd pgc_asd pgc_adhd pgc_ocd pgc_ptsd_civ_ea igap_ad, result/20180605/obs/gene-$(_trait).txt.gz)
 
 # % = igap-gammax_4-eigen_2.mediation
 
-result/20180602/obs/gene-%.txt.gz: make.cammel-gene-table.R
+result/20180605/obs/gene-%.txt.gz: make.cammel-gene-table.R
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)
-	./run.sh Rscript --vanilla $< result/20180602/obs/$(shell echo $* | awk -F'_' '{ print $$1 "/ " $$0 }') $@
+	./run.sh Rscript --vanilla $< result/20180605/obs/$(shell echo $* | awk -F'_' '{ print $$1 "/ " $$0 }') $@
 
