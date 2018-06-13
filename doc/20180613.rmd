@@ -1,0 +1,80 @@
+---
+title: Cammel results on 9 brain and neuropsychiatric phenotypes
+author: Yongjin Park
+---
+
+# Data
+
+## eQTL data
+
+We used ROS/MAP 
+
+## GWAS data
+
+1. Alzheimer's disease (AD) in IGAP, UKBB maternal and paternal (3 GWAS)
+2. Attention deficit hyperactivity disorder (ADHD) in PGC (1 GWAS)
+3. Autism spectrum disorder (ASD) in PGC (1 GWAS)
+4. Major depressive disorder (MDD) in PGC (1 GWAS)
+5. Obsessive-compulsive disorder (OCD) in PGC (1 GWAS)
+6. Post-traumatic stress disorder (PTSD) in PGC (1 GWAS)
+7. Schizophrenia (SCZ) in PGC (1 GWAS)
+8. Mood-swing in UKBB (1 GWAS)
+9. Neuroticism in UKBB (1 GWAS)
+
+Total 11 GWAS statistics
+
+# Results
+
+## Checking robustness against the choice permuted genes
+
+```{r}
+library(ggplot2)
+library(readr)
+library(dplyr)
+`%&&%` <- function(a,b) paste(a,b,sep='')
+
+rep1.dir <- '../result/20180602/obs/'
+rep2.dir <- '../result/20180605/obs/'
+gwas.name <- 'igap_ad'
+
+rep1.file <- rep1.dir %&&% '/gene-' %&&% gwas.name %&&% '.txt.gz'
+rep2.file <- rep2.dir %&&% '/gene-' %&&% gwas.name %&&% '.txt.gz'
+
+.cols <- c('med.id', 'hgnc', 'factor', 'data', 'gwas', 'ld.idx')
+.data.cols <- c('theta', 'theta.var', 'lodds', 'lfsr')
+
+.read.lo <- function(...) {
+    ret <- suppressMessages(read_tsv(...) %>% select_(.dots = c(.cols, .data.cols))) %>%
+        mutate(theta.se = sqrt(theta.var))
+}
+
+tab <- .read.lo(rep1.file) %>%
+    left_join(.read.lo(rep2.file), by = .cols, suffix = c('.1', '.2')) %>%
+    na.omit()
+
+tab.robust <- tab %>% filter(lfsr.1 < .05, lfsr.2 < .05, sign(theta.1) == sign(theta.2))
+
+plt <- ggplot() +
+    xlab('Mediation log-odds in experiment 1') + ylab('Mediation log-odds in experiment 2') +
+    geom_point(data = tab, aes(x = lodds.1, y = lodds.2), size = .5) +
+    geom_point(data = tab.robust, aes(x = lodds.1, y = lodds.2), col = 2, size = 2, pch = 21)
+    
+ggsave(filename = '20180613-' %&&% gwas.name %&&% '-lodds.pdf', plot = plt, width = 5, height = 5)
+print(plt)
+
+.aes.y <- aes(ymin = theta.2 - theta.se.2, ymax = theta.2 + theta.se.2)
+.aes.x <- aes(xmin = theta.1 - theta.se.1, xmax = theta.1 + theta.se.1)
+
+plt <- ggplot(tab, aes(x = theta.1, y = theta.2)) +
+    xlab('Mediation effects in experiment 1') + ylab('Mediation effects in experiment 2') +
+    geom_errorbar(data = tab.robust, .aes.y, col = 2) +
+    geom_errorbarh(data = tab.robust, .aes.x, col = 2) + 
+    geom_point(size = .5) +
+    geom_point(data = tab.robust, col = 2, size = 2, pch = 21)
+
+ggsave(filename = '20180613-' %&&% gwas.name %&&% '-effect.pdf', plot = plt, width = 5, height = 5)
+print(plt)
+
+## End of robustness
+```
+
