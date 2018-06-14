@@ -34,6 +34,7 @@ library(dplyr)
 library(ggrepel)
 options(stringsAsFactors = FALSE)
 source('../Util.R')
+source('../Util-Figure.R')
 dir.create('20180613/', recursive = TRUE)
 
 .read.data.join <- function(rep1.dir, rep2.dir, gwas.name,

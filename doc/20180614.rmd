@@ -1,0 +1,118 @@
+---
+title: Visualization of significant genes across multiple mediation studies
+author: Yongjin Park
+---
+
+
+```{r, echo = FALSE}
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggrepel)
+options(stringsAsFactors = FALSE)
+source('../Util.R')
+source('../Util-Figure.R')
+dir.create('20180614/', recursive = TRUE)
+
+.read.data.join <- function(rep1.dir, rep2.dir, gwas.name,
+                            .eqtls, .eqtls.name, .eqtls.col) {
+
+    rep1.file <- rep1.dir %&&% '/gene-' %&&% gwas.name %&&% '.txt.gz'
+    rep2.file <- rep2.dir %&&% '/gene-' %&&% gwas.name %&&% '.txt.gz'
+
+    .cols <- c('med.id', 'hgnc', 'chr', 'tss', 'tes', 'strand', 'factor', 'data', 'gwas', 'ld.idx')
+
+    .read.lo <- function(...) {
+        .data.cols <- c('theta', 'theta.var', 'lodds', 'lfsr')
+        ret <- suppressMessages(read_tsv(...) %>% select_(.dots = c(.cols, .data.cols))) %>%
+            mutate(theta.se = sqrt(theta.var))
+    }
+
+    tab <- .read.lo(rep1.file) %>%
+        left_join(.read.lo(rep2.file), by = .cols, suffix = c('.1', '.2')) %>%
+            na.omit() %>%
+                mutate(eqtl.data = factor(data, .eqtls, .eqtls.name)) %>%
+                    mutate(gwas.name)
+    
+}
+
+gwas.name.vec <- c('igap_ad',
+                   'pgc_scz', 'pgc_adhd', 'pgc_asd', 'pgc_ocd', 'pgc_mdd', 'pgc_ptsd_civ_ea',
+                   'ukbb_ad_mat', 'ukbb_ad_pat', 'ukbb_neuroticism', 'ukbb_moodswings')
+
+rep1.dir <- '../result/20180602/obs/'
+rep2.dir <- '../result/20180605/obs/'
+
+.eq <- c('rosmap-mult', 'mayo-mult', 'geuvadis-mult')
+.eq.n <- c('DLPFC', 'TCX', 'LCL')
+.eq.c <- c('#FF5500', '#005500', '#555555')
+
+tot.tab <- lapply(gwas.name.vec, .read.data.join,
+                  rep1.dir = rep1.dir, rep2.dir = rep2.dir,
+                  .eqtls = .eq, .eqtls.name = .eq.n, .eqtls.col = .eq.c) %>%
+    bind_rows()
+
+sig.med.id <- tot.tab %>%
+    filter(lfsr.1 < .05, lfsr.2 < .05) %>%
+    filter(sign(theta.1) == sign(theta.2)) %>%
+    select(med.id, ld.idx, eqtl.data) %>%
+    unique()
+
+for(eq in .eq.n) {
+
+    sig.tab.eq <- sig.med.id %>%
+        filter(eqtl.data == eq) %>%
+            left_join(tot.tab) %>% na.omit() %>%
+                rename(row = gwas.name) %>%
+                    mutate(col = hgnc) %>%
+                        mutate(weight = sign(theta.1)/(1 + exp(-(lodds.1 + lodds.2)/2)))
+    
+    n.genes <- sig.tab.eq %>% select(col) %>% unique() %>% nrow()
+
+    eq.order <- sig.tab.eq %>% select(row, col, weight) %>% unique() %>% order.pair()
+    
+    sig.tab.draw <- sig.tab.eq %>%
+        mutate(row = factor(row, eq.order$rows)) %>%
+            mutate(col = factor(col, eq.order$cols))
+    
+    sig.tab.lab <- sig.tab.draw %>% 
+        filter(lfsr.1 < .05, lfsr.2 < .05) %>%
+            filter(sign(theta.1) == sign(theta.2))
+
+    plt <- gg.plot(sig.tab.draw, aes(y = row, x = col, fill = weight)) +
+        geom_point(pch = 22, aes(size = pmin(-log10((lfsr.1+lfsr.2)/2), 4))) +
+            xlab(n.genes %&&% ' genes in ' %&&% eq) + ylab('GWAS')
+
+    plt <- plt +
+        geom_point(data = sig.tab.lab, aes(y = row, row = col), pch = '*', size = 5)
+
+    plt <- plt +
+        scale_x_discrete(position = 'top') +
+            theme(axis.text.x = element_text(angle = 75, vjust = 0, hjust = 0)) +
+                scale_size_continuous(range = c(0, 5), guide = FALSE) +
+                    scale_fill_gradient2('signed PIP', low = 'blue', high = 'red')
+    
+    print(plt)
+
+    ww <- ceiling(2 + n.genes * .15)
+    fig.name <- '20180614/' %&&% eq %&&% '.pdf'
+    ggsave(filename = fig.name, plot = plt, width = ww, height = 4, units = 'in')
+
+    fig.name <- '20180614/' %&&% eq %&&% '.png'
+    ggsave(filename = fig.name, plot = plt, width = ww, height = 4, units = 'in')
+           
+
+    summary.tab <- sig.tab.lab %>%
+        mutate(Effect = round(theta.1, 2) %&&% ' (' %&&% round(sqrt(theta.var.1), 2) %&&% ')') %>%
+            mutate(PIP = round(1/(1 + exp(-(lodds.1 + lodds.2)/2)), 1)) %>%
+                mutate(FSR = round(lfsr.1, 2)) %>%
+                    mutate(TSS = if_else(strand == '+', tss, tes)) %>%
+                        select(chr, TSS, hgnc, row, Effect, PIP, FSR) %>%
+                            rename(GWAS = row, Gene = hgnc)
+    
+    tab.name <- '20180614/' %&&% eq %&&% '.txt.gz'
+    write_tsv(summary.tab, path = tab.name)
+}
+```
+

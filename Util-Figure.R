@@ -55,3 +55,46 @@ grid.hcat <- function(p.list, ...) {
     return(ret)
 }
 
+row.order <- function(mat) {
+    require(cba)
+    require(proxy)
+
+    if(nrow(mat) < 3) {
+        return(1:nrow(mat))
+    }
+
+    D <- proxy::dist(mat, method = function(a,b) 1 - cor(a,b, method = 'spearman'))
+    D[!is.finite(D)] <- 0
+    h.out <- hclust(D)
+    o.out <- cba::order.optimal(D, h.out$merge)
+    return(o.out$order)
+}
+
+gg.plot <- function(...) {
+    require(ggplot2)
+    ggplot(...) + theme_bw() + theme(plot.background = element_blank(),
+                                     panel.background = element_blank(),
+                                     strip.background = element_blank(),
+                                     legend.background = element_blank())
+}
+
+order.pair <- function(pair.tab) {
+
+    require(tidyr)
+    require(dplyr)
+    M <- pair.tab %>% tidyr::spread(key = col, value = weight, fill = 0)
+    rr <- M[, 1] %>% unlist()
+    cc <- colnames(M)[-1] %>% unlist()
+
+    log.msg('Built the Mat: %d x %d', nrow(M), ncol(M))
+    ro <- row.order(M %>% dplyr::select(-row) %>% as.matrix())
+    log.msg('Sort the rows: %d', length(ro))
+
+    co <- order(apply(M[ro, -1], 2, which.max), decreasing = TRUE)
+
+    ## co <- row.order(t(M %>% dplyr::select(-row) %>% as.matrix()))
+    ## log.msg('Sort the columns: %d', length(co))
+
+    list(rows = rr[ro], cols = cc[co], M = M)
+}
+
