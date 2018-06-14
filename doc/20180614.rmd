@@ -10,6 +10,7 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(ggrepel)
+library(pander)
 options(stringsAsFactors = FALSE)
 source('../Util.R')
 source('../Util-Figure.R')
@@ -111,8 +112,13 @@ for(eq in .eq.n) {
                         select(chr, TSS, hgnc, row, Effect, PIP, FSR) %>%
                             rename(GWAS = row, Gene = hgnc)
     
-    tab.name <- '20180614/' %&&% eq %&&% '.txt.gz'
+    tab.name <- '20180614/' %&&% eq %&&% '.txt'
     write_tsv(summary.tab, path = tab.name)
+
+    temp <- pandoc.table.return(summary.tab, style = 'simple',
+                                big.mark = ',', caption = eq,
+                                split.table = 200)
+    tab.name <- '20180614/' %&&% eq %&&% '.md'
+    cat(temp, file = tab.name)
 }
 ```
-
