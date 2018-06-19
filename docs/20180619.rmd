@@ -1,0 +1,146 @@
+---
+title: A global view of mediation results on SCZ
+author: Yongjin Park
+theme: jekyll-theme-minimal
+---
+
+# Show results of the experiment 1 (`20180602`)
+
+```{r, results='hide', include=FALSE, message=FALSE, warning=FALSE}
+scz.file <- '../result/20180602/obs/gene-pgc_scz.txt.gz'
+source('../Util.R')
+source('../Util-Figure.R')
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(ggrepel)
+
+d.key <- c('rosmap-mult', 'mayo-mult', 'geuvadis-mult')
+d.name <- c('DLPFC-ROSMAP', 'TCX-Mayo', 'LCL-gEUVADIS')
+
+scz.tab <- read_tsv(scz.file) %>%
+    mutate(data = factor(data, d.key, d.name)) %>%
+    mutate(gene.loc = if_else(strand == '+', tss, tes)) %>%
+    mutate(ymin = theta - 2 * sqrt(theta.var), ymax = theta + 2 * sqrt(theta.var)) %>%
+    mutate(l10.gwas.p.ld = pmin(-log10(gwas.p.ld), 20))
+
+draw.global <- function(dd, tot.tab) {
+    df <- tot.tab %>% filter(data == dd)
+    df.sig <- df %>% filter(lfsr < 0.05)
+    df <- df %>% filter(chr %in% unique(df.sig$chr))
+    df.sig.neg <- df.sig %>% filter(theta < 0)
+    df.sig.pos <- df.sig %>% filter(theta > 0)
+
+    .genome.mb <- function() {
+        function(x) round(x/1e6)
+    }
+
+    .thm <- theme(legend.direction = 'horizontal', legend.position = 'bottom',
+                  panel.spacing.x = unit(0.5, 'lines'), panel.grid.minor.x = element_blank(),
+                  panel.border = element_blank(), strip.text = element_text(size = 8),
+                  axis.text = element_text(size = 8),
+                  axis.text.x = element_text(angle = 45, hjust = 1),
+                  legend.title = element_text(size = 12))
+
+    var.size <- scale_size_continuous('Variance explained',
+                                      range = c(1, 4),
+                                      breaks = c(1e-6, 1e-5, 1e-4))
+
+    gwas.color <- scale_fill_gradientn('-log10 GWAS p-value', colors = c('gray80', 'gray40', 'purple'))
+
+    plt <- gg.plot(df, aes(x = gene.loc, y = theta, label = hgnc)) + 
+        geom_errorbar(data = df.sig, aes(ymin = ymin, ymax = ymax), color = 'gray40') +
+            geom_point(aes(fill = pmin(l10.gwas.p.ld, 8), size = var.mediated), pch = 21) +
+                .thm + xlab('Genomic location (Mb)') + ylab('Mediation effect')
+
+    plt <- plt +
+        geom_text_repel(data = df.sig.neg, color = 'blue', segment.alpha = 0.5,
+                        nudge_y = -1, size = 2.5, segment.size = .5, segment.color = 'green')
+    plt <- plt +
+        geom_text_repel(data = df.sig.pos, color = 'red', segment.alpha = 0.5,
+                        nudge_y = 1, size = 2.5, segment.size = .5, segment.color = 'orange')
+
+    plt <- plt +
+        facet_grid(.~chr, scales = 'free', space = 'free') +
+            gwas.color + var.size +
+                scale_x_continuous(labels = .genome.mb(), breaks = c(0, 5e7, 1e8, 1.5e8, 2e8))
+
+    ww <- floor(nrow(df) / 120) + 1
+    list(plot = plt, width = ww)
+}
+
+dir.create('20180619', recursive = TRUE, showWarnings = FALSE)
+plt.list <- d.name %>% lapply(FUN = draw.global, tot.tab = scz.tab) 
+file.names <- '20180619' %&&% '/' %&&% d.name %&&% '.pdf'
+for(j in 1:length(d.name)) {
+    ggsave(filename = file.names[j], plot = plt.list[[j]]$plot,
+           width = plt.list[[j]]$width, height = 4, units = 'in')
+}
+
+file.names <- '20180619' %&&% '/' %&&% d.name %&&% '.png'
+for(j in 1:length(d.name)) {
+    ggsave(filename = file.names[j], plot = plt.list[[j]]$plot,
+           width = plt.list[[j]]$width, height = 4, units = 'in')
+}
+```
+
+## Numbers
+
+### Total number of genes tested
+
+We tested causal mediation effects of `r nrow(scz.tab)` genes, which we can break down into:
+```{r}
+scz.tab %>% group_by(data) %>% summarize(n.genes = n()) %>%
+    print()
+```
+
+### Number of genes significant
+
+#### Local False Sign Rate (FSR) cutoff 0.1
+
+```{r}
+scz.tab %>% filter(lfsr < .1) %>% group_by(data) %>% summarize(n.genes = n())
+```
+Total `r scz.tab %>% filter(lfsr < .1) %>% summarize(n.genes = n()) %>% unlist()` genes.
+
+#### Local False Sign Rate (FSR) cutoff 0.05
+
+```{r}
+scz.tab %>% filter(lfsr < .05) %>% group_by(data) %>% summarize(n.genes = n())
+```
+Total `r scz.tab %>% filter(lfsr < .05) %>% summarize(n.genes = n()) %>% unlist()` genes.
+
+#### Local False Sign Rate (FSR) cutoff 0.01
+
+```{r}
+scz.tab %>% filter(lfsr < .01) %>% group_by(data) %>% summarize(n.genes = n())
+```
+Total `r scz.tab %>% filter(lfsr < .01) %>% summarize(n.genes = n()) %>% unlist()` genes.
+
+
+## Figures
+
+### Mediation effects in Dorolateral Prefrontal Cortex (ROSMAP)
+
+```{r}
+print(plt.list[[1]]$plot)
+```
+
+Check out files: [PDF](20180619/DLPFC-ROSMAP.pdf), [PNG](20180619/DLPFC-ROSMAP.png)
+
+### Mediation effects in Temporal Cortex (Mayo)
+
+```{r}
+print(plt.list[[2]]$plot)
+```
+
+Check out files: [PDF](20180619/TCX-Mayo.pdf), [PNG](20180619/TCX-Mayo.png)
+
+### Mediation effects in Lymphoid Cell Lines (gEUVADIS)
+
+```{r}
+print(plt.list[[3]]$plot)
+```
+
+Check out files: [PDF](20180619/LCL-gEUVADIS.pdf), [PNG](20180619/LCL-gEUVADIS.png)
+
