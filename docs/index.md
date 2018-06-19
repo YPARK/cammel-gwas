@@ -1,7 +1,3 @@
----
-title: CaMMEL results on multiple GWAS statistics
-author: Yongjin Park
----
-
+# CaMMEL results on multiple brain GWAS statistics
 
 
