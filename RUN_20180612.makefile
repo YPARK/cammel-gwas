@@ -38,7 +38,7 @@ jobs/20180612-ukbb.long.gz: jobs/20180612-ukbb.txt.gz
 	[ $$(zcat $@ | wc -l) -eq 0 ] || qsub -P compbio_lab -o /dev/null -binding linear:1 -cwd -V -l h_vmem=8g -l h_rt=72:00:00 -b y -j y -N ukbb_long -t 1-$$(zcat $@ | wc -l) ./run_jobs.sh $@
 
 ################################################################
-table: $(foreach _trait, ukbb_ad_mat ukbb_ad_pat ukbb_moodswings ukbb_neuroticism pgc_scz pgc_mdd pgc_asd pgc_adhd pgc_ocd pgc_ptsd_civ_ea igap_ad, result/20180612/obs/gene-$(_trait).txt.gz)
+table: $(foreach _trait, ukbb_ad_mat ukbb_ad_pat ukbb_moodswings ukbb_neuroticism pgc_scz pgc_mdd pgc_asd pgc_adhd pgc_ocd pgc_ptsd_civ_ea pgc_ptsd_mil_ea pgc_ptsd_all_ea igap_ad, result/20180612/obs/gene-$(_trait).txt.gz)
 
 result/20180612/obs/gene-%.txt.gz: make.cammel-gene-table.R
 	@[ -d $(dir $@) ] || mkdir -p $(dir $@)

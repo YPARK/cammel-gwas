@@ -89,7 +89,11 @@ system('[ -d ' %&&% temp.dir %&&% ' ] && rm -r ' %&&% temp.dir)
 
         .gwas.tab <- read.gwas(.gwas.file)
 
-        if(nrow(.gwas.tab) < 1) return(NULL)
+        if(nrow(.gwas.tab) < 1) {
+            write_tsv(data.frame(), path = .out.file)
+            log.msg('Empty data\n')
+            return(NULL)
+        }
 
         .matched <- .gwas.tab %>%
             match.allele(plink.obj = plink.gwas, qtl.tab = eqtl.tab)
